@@ -47,3 +47,12 @@ class VerifyOtpSubmitted extends AuthEvent {
 }
 
 class LogoutRequested extends AuthEvent {}
+
+class UpdateAvatarRequested extends AuthEvent {
+  final String base64Image;
+
+  const UpdateAvatarRequested({required this.base64Image});
+
+  @override
+  List<Object?> get props => [base64Image];
+}

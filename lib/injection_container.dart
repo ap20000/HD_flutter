@@ -7,6 +7,7 @@ import 'features/auth/domain/repositories/auth_repository.dart';
 import 'features/auth/domain/usecases/login_usecase.dart';
 import 'features/auth/domain/usecases/register_usecase.dart';
 import 'features/auth/domain/usecases/verify_otp_usecase.dart';
+import 'features/auth/domain/usecases/update_avatar_usecase.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/patient_dashboard/data/datasources/patient_dashboard_remote_data_source.dart';
 import 'features/patient_dashboard/data/repositories/patient_dashboard_repository_impl.dart';
@@ -36,6 +37,7 @@ Future<void> init() async {
       loginUseCase: sl(),
       registerUseCase: sl(),
       verifyOtpUseCase: sl(),
+      updateAvatarUseCase: sl(),
     ),
   );
 
@@ -70,6 +72,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => LoginUseCase(sl()));
   sl.registerLazySingleton(() => RegisterUseCase(sl()));
   sl.registerLazySingleton(() => VerifyOtpUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateAvatarUseCase(sl()));
   sl.registerLazySingleton(() => GetDoctorsUseCase(sl()));
   sl.registerLazySingleton(() => GetArticlesUseCase(sl()));
   sl.registerLazySingleton(() => GetLatestHealthRecordUseCase(sl()));

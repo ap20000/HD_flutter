@@ -63,4 +63,18 @@ class AuthRepositoryImpl implements AuthRepository {
       return const Left(ServerFailure('An unexpected error occurred'));
     }
   }
+
+  @override
+  Future<Either<Failure, User>> updateAvatar({
+    required String base64Image,
+  }) async {
+    try {
+      final userModel = await remoteDataSource.updateAvatar(base64Image);
+      return Right(userModel as User);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return const Left(ServerFailure('An unexpected error occurred'));
+    }
+  }
 }

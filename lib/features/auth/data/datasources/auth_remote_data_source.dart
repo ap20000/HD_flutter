@@ -8,6 +8,7 @@ abstract class AuthRemoteDataSource {
   Future<UserModel> login(String loginId, String password);
   Future<String> register(String name, String email, String phone, String password, String role);
   Future<UserModel> verifyOtp(String phone, String code);
+  Future<UserModel> updateAvatar(String base64Image);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -85,6 +86,29 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         );
       } else {
         throw ServerException(response.data['message'] ?? 'Verification failed');
+      }
+    } on DioException catch (e) {
+      throw ServerException(e.response?.data['message'] ?? 'Connection error');
+    }
+  }
+
+  @override
+  Future<UserModel> updateAvatar(String base64Image) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.uploadAvatar,
+        data: {
+          'image': base64Image,
+        },
+      );
+
+      if (response.data['success']) {
+        return UserModel.fromJson(
+          response.data['user'],
+          token: AuthInterceptor.token,
+        );
+      } else {
+        throw ServerException(response.data['message'] ?? 'Failed to update avatar');
       }
     } on DioException catch (e) {
       throw ServerException(e.response?.data['message'] ?? 'Connection error');

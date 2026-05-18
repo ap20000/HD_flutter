@@ -7,6 +7,7 @@ class ApiConstants {
   static const String register = '/api/$apiVersion/auth/register';
   static const String verifyOtp = '/api/$apiVersion/auth/verify-otp';
   static const String getMe = '/api/$apiVersion/auth/me';
+  static const String uploadAvatar = '/api/$apiVersion/users/avatar';
 
   // Patient Dashboard Endpoints
   static const String getDoctors = '/api/$apiVersion/users/doctors';

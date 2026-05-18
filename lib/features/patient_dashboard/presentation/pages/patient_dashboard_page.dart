@@ -5,15 +5,23 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../features/auth/domain/entities/user.dart';
+import '../../../../features/auth/presentation/pages/profile_page.dart';
 import '../../../../injection_container.dart';
 import '../bloc/patient_dashboard_bloc.dart';
 import '../bloc/patient_dashboard_event.dart';
 import '../bloc/patient_dashboard_state.dart';
 
-class PatientDashboardPage extends StatelessWidget {
+class PatientDashboardPage extends StatefulWidget {
   final User user;
 
   const PatientDashboardPage({super.key, required this.user});
+
+  @override
+  State<PatientDashboardPage> createState() => _PatientDashboardPageState();
+}
+
+class _PatientDashboardPageState extends State<PatientDashboardPage> {
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -21,23 +29,51 @@ class PatientDashboardPage extends StatelessWidget {
       create: (context) => sl<PatientDashboardBloc>()..add(LoadDashboardData()),
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: BlocBuilder<PatientDashboardBloc, PatientDashboardState>(
+        body: _buildBody(),
+        floatingActionButton: _selectedIndex == 0 ? _PrimaryActionButton() : null,
+        floatingActionButtonLocation: _selectedIndex == 0 ? FloatingActionButtonLocation.centerDocked : null,
+        bottomNavigationBar: _ModernBottomNav(
+          selectedIndex: _selectedIndex,
+          onTap: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return BlocBuilder<PatientDashboardBloc, PatientDashboardState>(
           builder: (context, state) {
             if (state is PatientDashboardLoading) {
               return const _LoadingView();
             } else if (state is PatientDashboardError) {
               return _ErrorView(message: state.message);
             } else if (state is PatientDashboardLoaded) {
-              return _DashboardBody(user: user, state: state);
+              return _DashboardBody(user: widget.user, state: state);
             }
             return const SizedBox();
           },
-        ),
-        floatingActionButton: _PrimaryActionButton(),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        bottomNavigationBar: _ModernBottomNav(),
-      ),
-    );
+        );
+      case 1:
+        return const _PatientPlaceholderPage(
+          title: 'Schedule',
+          icon: Icons.calendar_today_outlined,
+        );
+      case 2:
+        return const _PatientPlaceholderPage(
+          title: 'Chat Messages',
+          icon: Icons.chat_bubble_outline,
+        );
+      case 3:
+        return ProfilePage(user: widget.user);
+      default:
+        return const SizedBox();
+    }
   }
 }
 
@@ -551,6 +587,11 @@ class _ConsultationsScroll extends StatelessWidget {
 }
 
 class _ModernBottomNav extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onTap;
+
+  const _ModernBottomNav({required this.selectedIndex, required this.onTap});
+
   @override
   Widget build(BuildContext context) {
     return BottomAppBar(
@@ -558,15 +599,35 @@ class _ModernBottomNav extends StatelessWidget {
       notchMargin: 8,
       child: Container(
         height: 70,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _NavIcon(icon: Icons.home_filled, label: 'Home', isSelected: true),
-            _NavIcon(icon: Icons.calendar_today_outlined, label: 'Schedule'),
+            _NavIcon(
+              icon: Icons.home_filled, 
+              label: 'Home', 
+              isSelected: selectedIndex == 0,
+              onTap: () => onTap(0),
+            ),
+            _NavIcon(
+              icon: Icons.calendar_today_outlined, 
+              label: 'Schedule', 
+              isSelected: selectedIndex == 1,
+              onTap: () => onTap(1),
+            ),
             const SizedBox(width: 40), // Space for FAB
-            _NavIcon(icon: Icons.chat_bubble_outline, label: 'Chat'),
-            _NavIcon(icon: Icons.person_outline, label: 'Profile'),
+            _NavIcon(
+              icon: Icons.chat_bubble_outline, 
+              label: 'Chat', 
+              isSelected: selectedIndex == 2,
+              onTap: () => onTap(2),
+            ),
+            _NavIcon(
+              icon: Icons.person_outline, 
+              label: 'Profile', 
+              isSelected: selectedIndex == 3,
+              onTap: () => onTap(3),
+            ),
           ],
         ),
       ),
@@ -578,31 +639,92 @@ class _NavIcon extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isSelected;
+  final VoidCallback onTap;
 
   const _NavIcon({
     required this.icon,
     required this.label,
+    required this.onTap,
     this.isSelected = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          color: isSelected ? AppColors.primary : AppColors.textTertiary,
-          size: 24,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppColors.primary : AppColors.textTertiary,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppTypography.labelMedium.copyWith(
+                color: isSelected ? AppColors.primary : AppColors.textTertiary,
+                fontSize: 11,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: AppTypography.labelMedium.copyWith(
-            color: isSelected ? AppColors.primary : AppColors.textTertiary,
+      ),
+    );
+  }
+}
+
+class _PatientPlaceholderPage extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _PatientPlaceholderPage({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 64, color: AppColors.primary),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                '$title Coming Soon',
+                style: AppTypography.h2,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'We are building this premium module to bring world-class healthcare tools directly to your screen.',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

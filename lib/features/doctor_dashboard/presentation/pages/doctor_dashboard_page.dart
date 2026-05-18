@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hamro_doctor_mobile/features/consultation_room/presentation/pages/consultation_room_page.dart';
@@ -5,13 +7,35 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../features/auth/domain/entities/user.dart';
+import '../../../../features/auth/presentation/pages/profile_page.dart';
 import '../../../../injection_container.dart';
 import '../bloc/doctor_dashboard_bloc.dart';
 
-class DoctorDashboardPage extends StatelessWidget {
+Uint8List? _getAvatarBytes(String? base64Str) {
+  if (base64Str == null || base64Str.isEmpty) return null;
+  try {
+    String cleaned = base64Str;
+    if (base64Str.contains(',')) {
+      cleaned = base64Str.split(',').last;
+    }
+    return base64Decode(cleaned);
+  } catch (e) {
+    return null;
+  }
+}
+
+
+class DoctorDashboardPage extends StatefulWidget {
   final User user;
 
   const DoctorDashboardPage({super.key, required this.user});
+
+  @override
+  State<DoctorDashboardPage> createState() => _DoctorDashboardPageState();
+}
+
+class _DoctorDashboardPageState extends State<DoctorDashboardPage> {
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +44,23 @@ class DoctorDashboardPage extends StatelessWidget {
           sl<DoctorDashboardBloc>()..add(LoadDoctorDashboardData()),
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: BlocBuilder<DoctorDashboardBloc, DoctorDashboardState>(
+        body: _buildBody(),
+        bottomNavigationBar: _DoctorBottomNav(
+          selectedIndex: _selectedIndex,
+          onTap: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return BlocBuilder<DoctorDashboardBloc, DoctorDashboardState>(
           builder: (context, state) {
             if (state is DoctorDashboardLoading) {
               return const Center(
@@ -29,14 +69,26 @@ class DoctorDashboardPage extends StatelessWidget {
             } else if (state is DoctorDashboardError) {
               return _ErrorView(message: state.message);
             } else if (state is DoctorDashboardLoaded) {
-              return _DoctorDashboardBody(user: user, state: state);
+              return _DoctorDashboardBody(user: widget.user, state: state);
             }
             return const SizedBox();
           },
-        ),
-        bottomNavigationBar: _DoctorBottomNav(),
-      ),
-    );
+        );
+      case 1:
+        return const _DoctorPlaceholderPage(
+          title: 'Schedule',
+          icon: Icons.calendar_month_rounded,
+        );
+      case 2:
+        return const _DoctorPlaceholderPage(
+          title: 'Messages',
+          icon: Icons.message_rounded,
+        );
+      case 3:
+        return ProfilePage(user: widget.user);
+      default:
+        return const SizedBox();
+    }
   }
 }
 
@@ -113,14 +165,19 @@ class _DoctorHeader extends StatelessWidget {
             children: [
               Stack(
                 children: [
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 30,
                     backgroundColor: AppColors.primarySoft,
-                    child: Icon(
-                      Icons.person,
-                      color: AppColors.primary,
-                      size: 35,
-                    ),
+                    backgroundImage: _getAvatarBytes(user.avatar) != null
+                        ? MemoryImage(_getAvatarBytes(user.avatar)!)
+                        : null,
+                    child: _getAvatarBytes(user.avatar) == null
+                        ? const Icon(
+                            Icons.person,
+                            color: AppColors.primary,
+                            size: 35,
+                          )
+                        : null,
                   ),
                   Positioned(
                     right: 0,
@@ -481,6 +538,11 @@ class _ActionItem extends StatelessWidget {
 }
 
 class _DoctorBottomNav extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onTap;
+
+  const _DoctorBottomNav({required this.selectedIndex, required this.onTap});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -492,11 +554,27 @@ class _DoctorBottomNav extends StatelessWidget {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: const [
-          _NavIcon(icon: Icons.dashboard_rounded, isSelected: true),
-          _NavIcon(icon: Icons.calendar_month_rounded),
-          _NavIcon(icon: Icons.message_rounded),
-          _NavIcon(icon: Icons.person_rounded),
+        children: [
+          _NavIcon(
+            icon: Icons.dashboard_rounded, 
+            isSelected: selectedIndex == 0,
+            onTap: () => onTap(0),
+          ),
+          _NavIcon(
+            icon: Icons.calendar_month_rounded, 
+            isSelected: selectedIndex == 1,
+            onTap: () => onTap(1),
+          ),
+          _NavIcon(
+            icon: Icons.message_rounded, 
+            isSelected: selectedIndex == 2,
+            onTap: () => onTap(2),
+          ),
+          _NavIcon(
+            icon: Icons.person_rounded, 
+            isSelected: selectedIndex == 3,
+            onTap: () => onTap(3),
+          ),
         ],
       ),
     );
@@ -506,14 +584,78 @@ class _DoctorBottomNav extends StatelessWidget {
 class _NavIcon extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
-  const _NavIcon({required this.icon, this.isSelected = false});
+  final VoidCallback onTap;
+
+  const _NavIcon({
+    required this.icon, 
+    required this.onTap, 
+    this.isSelected = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Icon(
-      icon,
-      color: isSelected ? AppColors.white : AppColors.grey,
-      size: 28,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Icon(
+          icon,
+          color: isSelected ? AppColors.white : AppColors.grey,
+          size: 28,
+        ),
+      ),
+    );
+  }
+}
+
+class _DoctorPlaceholderPage extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _DoctorPlaceholderPage({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 64, color: AppColors.primary),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                '$title Coming Soon',
+                style: AppTypography.h2,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'We are building this premium module to bring world-class healthcare tools directly to your screen.',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

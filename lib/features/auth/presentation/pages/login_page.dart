@@ -67,16 +67,13 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const SizedBox(height: 80),
                 Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.local_hospital, size: 64, color: Colors.blue),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    height: 100,
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 const Text(
                   'Welcome Back',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
