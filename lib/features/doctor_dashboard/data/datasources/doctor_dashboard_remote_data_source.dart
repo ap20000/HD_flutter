@@ -10,6 +10,7 @@ abstract class DoctorDashboardRemoteDataSource {
   Future<List<ConsultationModel>> getConsultations();
   Future<bool> updateStatus(bool isOnline);
   Future<void> respondToConsultation(String consultationId, String status);
+  Future<ConsultationModel> getConsultationById(String id);
 }
 
 class DoctorDashboardRemoteDataSourceImpl implements DoctorDashboardRemoteDataSource {
@@ -87,6 +88,20 @@ class DoctorDashboardRemoteDataSourceImpl implements DoctorDashboardRemoteDataSo
       );
       if (!response.data['success']) {
         throw ServerException(response.data['message'] ?? 'Failed to respond to consultation');
+      }
+    } on DioException catch (e) {
+      throw ServerException(e.response?.data['message'] ?? 'Connection error');
+    }
+  }
+
+  @override
+  Future<ConsultationModel> getConsultationById(String id) async {
+    try {
+      final response = await dio.get('/api/${ApiConstants.apiVersion}/consultations/$id');
+      if (response.data['success']) {
+        return ConsultationModel.fromJson(response.data['consultation']);
+      } else {
+        throw ServerException(response.data['message'] ?? 'Failed to fetch consultation details');
       }
     } on DioException catch (e) {
       throw ServerException(e.response?.data['message'] ?? 'Connection error');

@@ -1,34 +1,42 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Brand Colors - Communicating Trust & Precision
-  static const Color primary = Color(0xFF1E56FB); // Deep Trust Blue
-  static const Color primarySoft = Color(0xFFE8F0FF);
+  // Brand Colors - Stitch Design System
+  static const Color primary = Color(0xFF004AC6); // Soft Navy
+  static const Color primarySoft = Color(0xFFDBE1FF);
   
-  static const Color secondary = Color(0xFF00C48C); // Health Green
-  static const Color secondarySoft = Color(0xFFE5F9F3);
+  static const Color secondary = Color(0xFF006C49); // Health Emerald/Green
+  static const Color secondarySoft = Color(0xFF6CF8BB);
 
-  // Semantic Colors - Standardized for accessibility
-  static const Color success = Color(0xFF27AE60);
-  static const Color warning = Color(0xFFF2994A);
-  static const Color error = Color(0xFFEB5757);
+  // Semantic Colors
+  static const Color success = Color(0xFF10B981);
+  static const Color warning = Color(0xFFEA580C);
+  static const Color error = Color(0xFFBA1A1A);
   static const Color info = Color(0xFF2D9CDB);
 
-  // Neutral Palette - Google Health inspired
-  static const Color background = Color(0xFFF7F9FC); // Off-white for less eye strain
+  // Neutral Palette - Pearl & Navy
+  static const Color background = Color(0xFFFAF8FF);
   static const Color white = Colors.white;
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color textPrimary = Color(0xFF1A1C1E);
-  static const Color textSecondary = Color(0xFF6C727A);
-  static const Color textTertiary = Color(0xFF9EA3AE);
+  static const Color textPrimary = Color(0xFF131B2E);
+  static const Color textSecondary = Color(0xFF434655);
+  static const Color textTertiary = Color(0xFF737686);
   
-  static const Color border = Color(0xFFE5E7EB);
-  static const Color divider = Color(0xFFF3F4F6);
+  static const Color border = Color(0xFFC3C6D7);
+  static const Color divider = Color(0xFFEAEDFF);
   static const Color grey = Color(0xFF9E9E9E);
   static const Color black = Color(0xFF121212);
 
-  // Specialized Healthcare Colors
-  static const Color appointmentCard = Color(0xFF2D62ED);
+  // Specialized BMI & Status Colors
+  static const Color bmiUnderweight = Color(0xFFF59E0B);
+  static const Color bmiHealthy = Color(0xFF10B981);
+  static const Color bmiOverweight = Color(0xFFEA580C);
+  static const Color bmiObese = Color(0xFFDC2626);
+  static const Color surfacePearl = Color(0xFFF8FAFC);
+  static const Color statusOnline = Color(0xFF10B981);
+
+  // Fallbacks
+  static const Color appointmentCard = Color(0xFF004AC6);
   static const Color reportCard = Color(0xFF7B61FF);
   static const Color pharmacyCard = Color(0xFFFF9F43);
 }

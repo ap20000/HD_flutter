@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../../../core/services/socket_service.dart';
 import '../../core/webrtc_helper.dart';
+import '../../../doctor_dashboard/domain/usecases/doctor_dashboard_usecases.dart';
 
 // Events
 abstract class ConsultationRoomEvent extends Equatable {
@@ -118,6 +119,7 @@ class ConsultationRoomBloc
     extends Bloc<ConsultationRoomEvent, ConsultationRoomState> {
   final SocketService socketService;
   final WebRTCHelper webrtcHelper;
+  final GetConsultationByIdUseCase getConsultationByIdUseCase;
   String? _consultationId;
   StreamSubscription? _msgSub;
   StreamSubscription? _sigSub;
@@ -126,6 +128,7 @@ class ConsultationRoomBloc
   ConsultationRoomBloc({
     required this.socketService,
     required this.webrtcHelper,
+    required this.getConsultationByIdUseCase,
   }) : super(const ConsultationRoomState()) {
     on<JoinConsultationRoom>(_onJoinRoom);
     on<SendChatMessage>(_onSendMessage);
@@ -150,6 +153,19 @@ class ConsultationRoomBloc
     _consultationId = event.consultationId;
     socketService.connect();
     socketService.joinConsultation(event.consultationId);
+
+    // If it's a mock session id, do not fetch from backend
+    if (event.consultationId.contains('_session')) {
+      return;
+    }
+
+    final result = await getConsultationByIdUseCase(event.consultationId);
+    result.fold(
+      (failure) => print('Failed to fetch past messages: $failure'),
+      (consultation) {
+        emit(state.copyWith(messages: consultation.messages));
+      },
+    );
   }
 
   Future<void> _onSendMessage(
@@ -165,7 +181,12 @@ class ConsultationRoomBloc
     MessageReceived event,
     Emitter<ConsultationRoomState> emit,
   ) {
-    emit(state.copyWith(messages: [...state.messages, event.message]));
+    final Map<String, dynamic> mappedMsg = {
+      'senderId': event.message['sender'] ?? event.message['senderId'] ?? '',
+      'text': event.message['text'] ?? '',
+      'timestamp': event.message['timestamp'] ?? '',
+    };
+    emit(state.copyWith(messages: [...state.messages, mappedMsg]));
   }
 
   Future<void> _onStartCall(

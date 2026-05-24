@@ -63,19 +63,32 @@ class Consultation extends Equatable {
   final String id;
   final String doctorName;
   final String? patientName;
+  final String? patientAvatar;
   final String doctorSpecialty;
   final String status;
   final String createdAt;
+  final List<Map<String, dynamic>> messages;
 
   const Consultation({
     required this.id,
     required this.doctorName,
     this.patientName,
+    this.patientAvatar,
     required this.doctorSpecialty,
     required this.status,
     required this.createdAt,
+    this.messages = const [],
   });
 
   @override
-  List<Object?> get props => [id, doctorName, patientName, doctorSpecialty, status, createdAt];
+  List<Object?> get props => [
+        id,
+        doctorName,
+        patientName,
+        patientAvatar,
+        doctorSpecialty,
+        status,
+        createdAt,
+        messages,
+      ];
 }

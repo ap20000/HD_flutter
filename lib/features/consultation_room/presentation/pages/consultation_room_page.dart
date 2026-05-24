@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -7,17 +9,35 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../injection_container.dart';
 import '../bloc/consultation_room_bloc.dart';
+import 'prescription_page.dart';
+
+Uint8List? _getAvatarBytes(String? base64Str) {
+  if (base64Str == null || base64Str.isEmpty) return null;
+  try {
+    String cleaned = base64Str;
+    if (base64Str.contains(',')) {
+      cleaned = base64Str.split(',').last;
+    }
+    return base64Decode(cleaned);
+  } catch (e) {
+    return null;
+  }
+}
 
 class ConsultationRoomPage extends StatefulWidget {
   final String consultationId;
   final String currentUserId;
   final String otherUserName;
+  final String? otherUserAvatar;
+  final bool isDoctor;
 
   const ConsultationRoomPage({
     super.key,
     required this.consultationId,
     required this.currentUserId,
     required this.otherUserName,
+    this.otherUserAvatar,
+    this.isDoctor = false,
   });
 
   @override
@@ -93,7 +113,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
             },
             child: Scaffold(
               resizeToAvoidBottomInset: !state.isCallActive,
-              backgroundColor: AppColors.background,
+              backgroundColor: const Color(0xFFF8FAFC), // Premium light background
               appBar: _buildAppBar(context, state),
               body: Stack(
                 children: [
@@ -111,32 +131,92 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
 
   PreferredSizeWidget _buildAppBar(BuildContext context, ConsultationRoomState state) {
     return AppBar(
-      backgroundColor: AppColors.white,
-      elevation: 0.5,
+      backgroundColor: Colors.white,
+      elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
         onPressed: () => Navigator.pop(context),
       ),
       title: Row(
         children: [
-          const CircleAvatar(radius: 18, backgroundColor: AppColors.primarySoft, child: Icon(Icons.person, size: 20, color: AppColors.primary)),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Stack(
             children: [
-              Text(widget.otherUserName, style: AppTypography.titleMedium),
-              Text(state.isCallActive ? 'In Video Call' : 'Online', style: AppTypography.labelMedium.copyWith(color: AppColors.secondary)),
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFE8F0FF),
+                backgroundImage: _getAvatarBytes(widget.otherUserAvatar) != null
+                    ? MemoryImage(_getAvatarBytes(widget.otherUserAvatar)!)
+                    : null,
+                child: _getAvatarBytes(widget.otherUserAvatar) == null
+                    ? const Icon(Icons.person, size: 20, color: Color(0xFF004AC6))
+                    : null,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: 10,
+                  width: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981), // success green
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
             ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.otherUserName,
+                  style: const TextStyle(
+                    fontFamily: AppTypography.fontFamily,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  state.isCallActive ? 'In Video Call' : 'Active Session',
+                  style: const TextStyle(
+                    fontFamily: AppTypography.fontFamily,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
       actions: [
+        // Prescription Action Button
         IconButton(
-          icon: const Icon(Icons.call_outlined, color: AppColors.primary),
+          icon: const Icon(Icons.receipt_long_outlined, color: Color(0xFF004AC6), size: 22),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PrescriptionPage(
+                  patientName: widget.isDoctor ? widget.otherUserName : 'Samyog',
+                  isDoctor: widget.isDoctor,
+                ),
+              ),
+            );
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.call_outlined, color: Color(0xFF004AC6), size: 22),
           onPressed: () => context.read<ConsultationRoomBloc>().add(const StartCall(isVideo: false)),
         ),
         IconButton(
-          icon: const Icon(Icons.videocam_outlined, color: AppColors.primary),
+          icon: const Icon(Icons.videocam_outlined, color: Color(0xFF004AC6), size: 22),
           onPressed: () => context.read<ConsultationRoomBloc>().add(const StartCall(isVideo: true)),
         ),
         const SizedBox(width: 8),
@@ -145,17 +225,59 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
   }
 
   Widget _buildChatView(BuildContext context, ConsultationRoomState state) {
+    // Generate list of messages combined with default high-fidelity mock messages
+    final List<Map<String, dynamic>> mockMessages = [
+      {
+        'senderId': 'doctor', // Dr. Aradhana
+        'text': "Good morning. I've reviewed your previous logs. How have you been feeling since we adjusted your medication last week?",
+        'type': 'text',
+      },
+      {
+        'senderId': widget.currentUserId, // Patient Samyog
+        'text': "I'm feeling much better, but I did notice a slight palpitation yesterday evening while resting.",
+        'type': 'text',
+      },
+      {
+        'senderId': widget.currentUserId,
+        'text': "Medical_Report_Oct.pdf",
+        'type': 'file',
+        'fileSize': '2.4 MB • PDF Document',
+      },
+      {
+        'senderId': 'doctor',
+        'text': "Understood. That's a helpful detail. Based on the report you shared, I'll update your prescription to better manage those fluctuations.",
+        'type': 'text',
+      },
+    ];
+
+    // Map database messages
+    final List<Map<String, dynamic>> realMessages = state.messages.map((m) => {
+      'senderId': m['senderId'],
+      'text': m['text'],
+      'type': 'text',
+    }).toList();
+
+    final bool isMockSession = widget.consultationId.contains('_session');
+    final List<Map<String, dynamic>> allMessages = isMockSession
+        ? [...mockMessages, ...realMessages]
+        : realMessages;
+
     return Column(
       children: [
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             reverse: true,
-            itemCount: state.messages.length,
+            itemCount: allMessages.length,
             itemBuilder: (context, index) {
-              final msg = state.messages[state.messages.length - 1 - index];
+              final msg = allMessages[allMessages.length - 1 - index];
               final isMe = msg['senderId'] == widget.currentUserId;
-              return _MessageBubble(text: msg['text'] ?? '', isMe: isMe);
+              final isFile = msg['type'] == 'file';
+
+              if (isFile) {
+                return _buildFileBubble(msg['text'] ?? 'Document.pdf', msg['fileSize'] ?? '0 KB • Document', isMe);
+              }
+              return _buildMessageBubble(msg['text'] ?? '', isMe);
             },
           ),
         ),
@@ -164,19 +286,134 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
     );
   }
 
+  Widget _buildMessageBubble(String text, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isMe ? const Color(0xFF004AC6) : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMe ? 20 : 4),
+            bottomRight: Radius.circular(isMe ? 4 : 20),
+          ),
+          border: isMe ? null : Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+          boxShadow: [
+            if (!isMe)
+              const BoxShadow(
+                color: Color(0x050F172A),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              )
+          ],
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontFamily: AppTypography.fontFamily,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+            color: isMe ? Colors.white : const Color(0xFF1E293B),
+            height: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileBubble(String fileName, String fileSize, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        child: AppCard(
+          padding: const EdgeInsets.all(14),
+          borderRadius: 20,
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2F6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFFEF4444), size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      style: const TextStyle(
+                        fontFamily: AppTypography.fontFamily,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      fileSize,
+                      style: const TextStyle(
+                        fontFamily: AppTypography.fontFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMessageInput(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
-      decoration: BoxDecoration(color: AppColors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x050F172A),
+            blurRadius: 15,
+            offset: Offset(0, -5),
+          )
+        ],
+      ),
       child: Row(
         children: [
           Expanded(
-            child: AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              borderRadius: 30,
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
                 controller: _messageController,
-                decoration: const InputDecoration(hintText: 'Type a message...', border: InputBorder.none),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                decoration: const InputDecoration(
+                  hintText: 'Type a message...',
+                  hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                  border: InputBorder.none,
+                ),
               ),
             ),
           ),
@@ -188,7 +425,15 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
                 _messageController.clear();
               }
             },
-            child: const CircleAvatar(radius: 24, backgroundColor: AppColors.primary, child: Icon(Icons.send, color: Colors.white, size: 20)),
+            child: Container(
+              height: 46,
+              width: 46,
+              decoration: const BoxDecoration(
+                color: Color(0xFF004AC6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+            ),
           ),
         ],
       ),
@@ -203,19 +448,61 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
           if (state.remoteStream != null)
             RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
           else
-            const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            const Center(child: CircularProgressIndicator(color: Color(0xFF004AC6))),
           
           Positioned(
             right: 20,
             top: 40,
             child: Container(
-              width: 120,
-              height: 180,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white24, width: 2), boxShadow: const [BoxShadow(blurRadius: 10, color: Colors.black45)]),
+              width: 110,
+              height: 165,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white24, width: 2),
+                boxShadow: const [BoxShadow(blurRadius: 15, color: Colors.black38)],
+              ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(18),
                 child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
               ),
+            ),
+          ),
+
+          // Header Overlay
+          Positioned(
+            left: 20,
+            top: 40,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.otherUserName,
+                  style: const TextStyle(
+                    fontFamily: AppTypography.fontFamily,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black38,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'END-TO-END ENCRYPTED',
+                    style: TextStyle(
+                      fontFamily: AppTypography.fontFamily,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white70,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           
@@ -236,20 +523,20 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
           _CallControlButton(
             icon: state.isMuted ? Icons.mic_off : Icons.mic,
             onPressed: () => context.read<ConsultationRoomBloc>().add(ToggleMute()),
-            color: state.isMuted ? Colors.red : Colors.white24,
+            color: state.isMuted ? const Color(0xFFEF4444) : Colors.white24,
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 24),
           _CallControlButton(
             icon: Icons.call_end,
             onPressed: () => context.read<ConsultationRoomBloc>().add(EndConsultationCall()),
-            color: Colors.red,
+            color: const Color(0xFFEF4444),
             isLarge: true,
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 24),
           _CallControlButton(
             icon: state.isCameraOn ? Icons.videocam : Icons.videocam_off,
             onPressed: () => context.read<ConsultationRoomBloc>().add(ToggleCamera()),
-            color: state.isCameraOn ? Colors.white24 : Colors.red,
+            color: state.isCameraOn ? Colors.white24 : const Color(0xFFEF4444),
           ),
         ],
       ),
@@ -258,75 +545,66 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
 
   Widget _buildIncomingCallOverlay(BuildContext context, ConsultationRoomState state) {
     return Container(
-      color: Colors.black.withOpacity(0.8),
+      color: Colors.black.withOpacity(0.85),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircleAvatar(
-              radius: 50,
-              backgroundColor: AppColors.primarySoft,
-              child: Icon(Icons.person, size: 50, color: AppColors.primary),
+              radius: 54,
+              backgroundColor: Color(0xFFE8F0FF),
+              child: Icon(Icons.person, size: 54, color: Color(0xFF004AC6)),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'Incoming Video Call',
-              style: AppTypography.h2.copyWith(color: Colors.white),
+              style: TextStyle(
+                fontFamily: AppTypography.fontFamily,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               widget.otherUserName,
-              style: AppTypography.bodyLarge.copyWith(color: Colors.white70),
+              style: const TextStyle(
+                fontFamily: AppTypography.fontFamily,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white70,
+              ),
             ),
-            const SizedBox(height: 48),
+            const SizedBox(height: 64),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FloatingActionButton(
-                  heroTag: 'decline_call',
-                  onPressed: () => context.read<ConsultationRoomBloc>().add(RejectCall()),
-                  backgroundColor: Colors.red,
-                  child: const Icon(Icons.call_end, color: Colors.white),
+                GestureDetector(
+                  onTap: () => context.read<ConsultationRoomBloc>().add(RejectCall()),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.call_end, color: Colors.white, size: 28),
+                  ),
                 ),
-                FloatingActionButton(
-                  heroTag: 'accept_call',
-                  onPressed: () => context.read<ConsultationRoomBloc>().add(AcceptCall()),
-                  backgroundColor: Colors.green,
-                  child: const Icon(Icons.videocam, color: Colors.white),
+                GestureDetector(
+                  onTap: () => context.read<ConsultationRoomBloc>().add(AcceptCall()),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.videocam, color: Colors.white, size: 28),
+                  ),
                 ),
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _MessageBubble extends StatelessWidget {
-  final String text;
-  final bool isMe;
-  const _MessageBubble({required this.text, required this.isMe});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-          color: isMe ? AppColors.primary : AppColors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMe ? 16 : 0),
-            bottomRight: Radius.circular(isMe ? 0 : 16),
-          ),
-          boxShadow: [if (!isMe) BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 2))],
-        ),
-        child: Text(text, style: AppTypography.bodyMedium.copyWith(color: isMe ? Colors.white : AppColors.textPrimary)),
       ),
     );
   }
@@ -345,10 +623,21 @@ class _CallControlButton extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        height: isLarge ? 64 : 50,
-        width: isLarge ? 64 : 50,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.white, size: isLarge ? 30 : 24),
+        height: isLarge ? 64 : 52,
+        width: isLarge ? 64 : 52,
+        decoration: BoxDecoration(
+          color: color, 
+          shape: BoxShape.circle,
+          boxShadow: [
+            if (isLarge)
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              )
+          ],
+        ),
+        child: Icon(icon, color: Colors.white, size: isLarge ? 30 : 22),
       ),
     );
   }

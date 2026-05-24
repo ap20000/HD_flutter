@@ -60,3 +60,13 @@ class RespondParams {
   final String status;
   RespondParams({required this.id, required this.status});
 }
+
+class GetConsultationByIdUseCase implements UseCase<Consultation, String> {
+  final DoctorDashboardRepository repository;
+  GetConsultationByIdUseCase(this.repository);
+
+  @override
+  Future<Either<Failure, Consultation>> call(String id) async {
+    return await repository.getConsultationById(id);
+  }
+}

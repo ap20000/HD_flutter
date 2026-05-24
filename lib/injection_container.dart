@@ -65,6 +65,7 @@ Future<void> init() async {
     () => ConsultationRoomBloc(
       socketService: sl(),
       webrtcHelper: sl(),
+      getConsultationByIdUseCase: sl(),
     ),
   );
 
@@ -84,6 +85,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetDoctorConsultationsUseCase(sl()));
   sl.registerLazySingleton(() => UpdateDoctorStatusUseCase(sl()));
   sl.registerLazySingleton(() => RespondToConsultationUseCase(sl()));
+  sl.registerLazySingleton(() => GetConsultationByIdUseCase(sl()));
 
   // Repository
   sl.registerLazySingleton<AuthRepository>(

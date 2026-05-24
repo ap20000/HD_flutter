@@ -9,4 +9,5 @@ abstract class DoctorDashboardRepository {
   Future<Either<Failure, List<Consultation>>> getConsultations();
   Future<Either<Failure, bool>> updateStatus(bool isOnline);
   Future<Either<Failure, void>> respondToConsultation(String consultationId, String status);
+  Future<Either<Failure, Consultation>> getConsultationById(String id);
 }

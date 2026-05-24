@@ -70,4 +70,16 @@ class DoctorDashboardRepositoryImpl implements DoctorDashboardRepository {
       return const Left(ServerFailure('An unexpected error occurred'));
     }
   }
+
+  @override
+  Future<Either<Failure, Consultation>> getConsultationById(String id) async {
+    try {
+      final consultation = await remoteDataSource.getConsultationById(id);
+      return Right(consultation);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return const Left(ServerFailure('An unexpected error occurred'));
+    }
+  }
 }

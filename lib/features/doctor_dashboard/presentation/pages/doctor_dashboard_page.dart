@@ -24,7 +24,6 @@ Uint8List? _getAvatarBytes(String? base64Str) {
   }
 }
 
-
 class DoctorDashboardPage extends StatefulWidget {
   final User user;
 
@@ -43,9 +42,11 @@ class _DoctorDashboardPageState extends State<DoctorDashboardPage> {
       create: (context) =>
           sl<DoctorDashboardBloc>()..add(LoadDoctorDashboardData()),
       child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: _buildBody(),
-        bottomNavigationBar: _DoctorBottomNav(
+        backgroundColor: const Color(0xFFF8FAFC), // Pearl White / Light Gray backdrop
+        body: SafeArea(
+          child: _buildBody(),
+        ),
+        bottomNavigationBar: _PremiumDoctorBottomNav(
           selectedIndex: _selectedIndex,
           onTap: (index) {
             setState(() {
@@ -75,14 +76,24 @@ class _DoctorDashboardPageState extends State<DoctorDashboardPage> {
           },
         );
       case 1:
-        return const _DoctorPlaceholderPage(
-          title: 'Schedule',
-          icon: Icons.calendar_month_rounded,
+        return BlocBuilder<DoctorDashboardBloc, DoctorDashboardState>(
+          builder: (context, state) {
+            if (state is DoctorDashboardLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            } else if (state is DoctorDashboardError) {
+              return _ErrorView(message: state.message);
+            } else if (state is DoctorDashboardLoaded) {
+              return _ActiveConsultationsTab(user: widget.user, state: state);
+            }
+            return const SizedBox();
+          },
         );
       case 2:
         return const _DoctorPlaceholderPage(
-          title: 'Messages',
-          icon: Icons.message_rounded,
+          title: 'Articles',
+          icon: Icons.article_outlined,
         );
       case 3:
         return ProfilePage(user: widget.user);
@@ -100,6 +111,8 @@ class _DoctorDashboardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pendingCount = state.consultations.where((c) => c.status == 'pending').length;
+
     return RefreshIndicator(
       onRefresh: () async =>
           context.read<DoctorDashboardBloc>().add(LoadDoctorDashboardData()),
@@ -107,34 +120,22 @@ class _DoctorDashboardBody extends StatelessWidget {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          _DoctorHeader(user: user, isOnline: state.isOnline),
+          _SliverDoctorHeader(user: user, isOnline: state.isOnline),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                const SizedBox(height: 16),
+                _DoctorOnlineStatusCard(isOnline: state.isOnline),
                 const SizedBox(height: 24),
-                _PerformanceStats(stats: state.stats),
-                const SizedBox(height: 32),
-                SectionHeader(
-                  title: 'Today\'s Consultations',
-                  actionText: 'Queue',
-                  onAction: () {},
-                ),
-                const SizedBox(height: 16),
-                _PatientQueue(consultations: state.consultations),
-                const SizedBox(height: 32),
-                SectionHeader(
-                  title: 'My Workplaces',
-                  actionText: 'Add New',
-                  onAction: () {},
-                ),
-                const SizedBox(height: 16),
-                _WorkplacesList(workplaces: state.workplaces),
-                const SizedBox(height: 32),
-                const SectionHeader(title: 'Quick Actions'),
-                const SizedBox(height: 16),
-                const _QuickActionsGrid(),
-                const SizedBox(height: 100),
+                _PerformanceStats(stats: state.stats, pendingCount: pendingCount),
+                const SizedBox(height: 28),
+                _PendingRequestsSection(consultations: state.consultations),
+                const SizedBox(height: 28),
+                const _OpdScheduleSection(),
+                const SizedBox(height: 28),
+                _WorkplaceSection(workplaces: state.workplaces),
+                const SizedBox(height: 40),
               ]),
             ),
           ),
@@ -144,29 +145,30 @@ class _DoctorDashboardBody extends StatelessWidget {
   }
 }
 
-class _DoctorHeader extends StatelessWidget {
+class _SliverDoctorHeader extends StatelessWidget {
   final User user;
   final bool isOnline;
 
-  const _DoctorHeader({required this.user, required this.isOnline});
+  const _SliverDoctorHeader({required this.user, required this.isOnline});
 
   @override
   Widget build(BuildContext context) {
-    return SliverAppBar(
-      expandedHeight: 140,
-      backgroundColor: AppColors.background,
-      elevation: 0,
-      pinned: true,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 60, 20, 0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Doctor Avatar with Online Status indicator dot
+            Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                  ),
+                  child: CircleAvatar(
+                    radius: 22,
                     backgroundColor: AppColors.primarySoft,
                     backgroundImage: _getAvatarBytes(user.avatar) != null
                         ? MemoryImage(_getAvatarBytes(user.avatar)!)
@@ -175,91 +177,175 @@ class _DoctorHeader extends StatelessWidget {
                         ? const Icon(
                             Icons.person,
                             color: AppColors.primary,
-                            size: 35,
+                            size: 24,
                           )
                         : null,
                   ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      height: 14,
-                      width: 14,
-                      decoration: BoxDecoration(
-                        color: isOnline ? AppColors.secondary : AppColors.grey,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.white, width: 2),
-                      ),
+                ),
+                Positioned(
+                  right: 1,
+                  bottom: 1,
+                  child: Container(
+                    height: 11,
+                    width: 11,
+                    decoration: BoxDecoration(
+                      color: isOnline ? AppColors.success : AppColors.textTertiary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Dr. ${user.name.split(' ')[0]}',
-                    style: AppTypography.h2,
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            // Name Greeting
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Welcome Back,',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 4),
-                  StatusBadge(
-                    text: isOnline ? 'Online' : 'Offline',
-                    color: isOnline
-                        ? AppColors.secondary
-                        : AppColors.textTertiary,
+                ),
+                Text(
+                  'Dr. ${user.name.split(' ')[0]} 🩺',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    color: Color(0xFF004AC6), // Brand Navy
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
+                ),
+              ],
+            ),
+            const Spacer(),
+            // Notification Bell
+            Container(
+              height: 44,
+              width: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFFEEF2F6),
+                shape: BoxShape.circle,
               ),
-              const Spacer(),
-              _StatusToggle(isOnline: isOnline),
-            ],
-          ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: Color(0xFF1E293B),
+                  size: 22,
+                ),
+                onPressed: () {},
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _StatusToggle extends StatelessWidget {
+class _DoctorOnlineStatusCard extends StatelessWidget {
   final bool isOnline;
-  const _StatusToggle({required this.isOnline});
+
+  const _DoctorOnlineStatusCard({required this.isOnline});
 
   @override
   Widget build(BuildContext context) {
-    return Switch.adaptive(
-      value: isOnline,
-      activeColor: AppColors.secondary,
-      onChanged: (val) {
-        context.read<DoctorDashboardBloc>().add(ToggleOnlineStatus(val));
-      },
+    return AppCard(
+      borderRadius: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      color: Colors.white,
+      border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (isOnline ? AppColors.success : AppColors.textTertiary).withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isOnline ? Icons.visibility : Icons.visibility_off,
+              color: isOnline ? AppColors.success : AppColors.textTertiary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isOnline ? AppColors.success : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isOnline ? 'You are visible to patients' : 'You are currently hidden',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isOnline,
+            activeColor: AppColors.success,
+            onChanged: (val) {
+              context.read<DoctorDashboardBloc>().add(ToggleOnlineStatus(val));
+            },
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _PerformanceStats extends StatelessWidget {
   final dynamic stats;
-  const _PerformanceStats({required this.stats});
+  final int pendingCount;
+
+  const _PerformanceStats({required this.stats, required this.pendingCount});
 
   @override
   Widget build(BuildContext context) {
+    final consultationCount = stats.noOfConsultations ?? 0;
+    
     return Row(
       children: [
-        Expanded(
-          child: _StatCard(
-            label: 'Earnings',
-            value: 'Rs. ${stats.netEarnings.toInt()}',
-            icon: Icons.account_balance_wallet_outlined,
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(width: 16),
+        // Today's Consultations
         Expanded(
           child: _StatCard(
             label: 'Consults',
-            value: '${stats.noOfConsultations}',
-            icon: Icons.people_outline,
-            color: AppColors.secondary,
+            value: '$consultationCount',
+            color: const Color(0xFF004AC6),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Pending Requests
+        Expanded(
+          child: _StatCard(
+            label: 'Pending',
+            value: '$pendingCount',
+            color: const Color(0xFFEA580C),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Clinical Experience
+        Expanded(
+          child: const _StatCard(
+            label: 'Experience',
+            value: '8 Yrs',
+            color: Color(0xFF10B981),
           ),
         ),
       ],
@@ -270,84 +356,125 @@ class _PerformanceStats extends StatelessWidget {
 class _StatCard extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
   final Color color;
 
   const _StatCard({
     required this.label,
     required this.value,
-    required this.icon,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.all(20),
-      color: color.withOpacity(0.05),
-      border: Border.all(color: color.withOpacity(0.1)),
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      color: Colors.white,
+      border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 16),
-          Text(value, style: AppTypography.h2),
-          Text(label, style: AppTypography.bodySmall),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: color,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF94A3B8),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
   }
 }
 
-class _PatientQueue extends StatelessWidget {
+class _PendingRequestsSection extends StatelessWidget {
   final List consultations;
-  const _PatientQueue({required this.consultations});
+
+  const _PendingRequestsSection({required this.consultations});
 
   @override
   Widget build(BuildContext context) {
-    if (consultations.isEmpty) {
-      return AppCard(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.event_note_outlined,
-                color: AppColors.textTertiary,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No consultations scheduled',
-                style: AppTypography.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final pendingConsults = consultations.where((c) => c.status == 'pending').toList();
 
     return Column(
-      children: consultations
-          .map((cons) => _PatientCard(consultation: cons))
-          .toList(),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Pending Requests',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (pendingConsults.isEmpty)
+          AppCard(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+            borderRadius: 24,
+            border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+            child: Center(
+              child: Column(
+                children: const [
+                  Icon(
+                    Icons.event_note_outlined,
+                    color: Color(0xFF94A3B8),
+                    size: 40,
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'No pending requests found',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...pendingConsults.map((cons) => _PendingRequestCard(consultation: cons)),
+      ],
     );
   }
 }
 
-class _PatientCard extends StatelessWidget {
+class _PendingRequestCard extends StatelessWidget {
   final dynamic consultation;
-  const _PatientCard({required this.consultation});
+
+  const _PendingRequestCard({required this.consultation});
 
   @override
   Widget build(BuildContext context) {
+    // Check if we are active or pending
     final bool isPending = consultation.status == 'pending';
     final bool isActive = consultation.status == 'active';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    // Mock patient details if not provided
+    final String ageGender = '24 Years • Female';
+    final String problem = 'Persistent Cough & Fatigue for 3 days';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       child: AppCard(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
+        borderRadius: 24,
+        border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
         onTap: isActive
             ? () {
                 Navigator.push(
@@ -355,72 +482,135 @@ class _PatientCard extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => ConsultationRoomPage(
                       consultationId: consultation.id,
-                      currentUserId:
-                          (context
-                                  .findAncestorWidgetOfExactType<
-                                    DoctorDashboardPage
-                                  >())
-                              ?.user
-                              .id ??
-                          '',
+                      currentUserId: (context.findAncestorWidgetOfExactType<DoctorDashboardPage>())?.user.id ?? '',
                       otherUserName: consultation.patientName ?? 'Patient',
+                      otherUserAvatar: consultation.patientAvatar,
+                      isDoctor: true,
                     ),
                   ),
                 );
               }
             : null,
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: isPending ? AppColors.reportCard.withOpacity(0.2) : AppColors.divider,
-              child: Icon(
-                isPending ? Icons.notification_important_rounded : Icons.person,
-                color: isPending ? AppColors.reportCard : AppColors.textTertiary,
+            Row(
+              children: [
+                const CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Color(0xFFE8F0FF),
+                  child: Icon(Icons.person, color: Color(0xFF004AC6), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        consultation.patientName ?? 'New Patient',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        ageGender,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isPending)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F0FF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'ACTIVE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF004AC6),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Problem:',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF94A3B8),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 2),
+            Text(
+              problem,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            if (isPending) ...[
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  Text(
-                    consultation.patientName ?? 'New Patient',
-                    style: AppTypography.titleMedium,
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          context.read<DoctorDashboardBloc>().add(
+                                RespondToRequest(consultation.id, 'cancelled'),
+                              );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFEF4444), width: 1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                        child: const Text(
+                          'Decline',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFEF4444)),
+                        ),
+                      ),
+                    ),
                   ),
-                  Text(
-                    isPending ? 'Wants to consult' : 'Active Session',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: isPending ? AppColors.reportCard : AppColors.textSecondary,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          context.read<DoctorDashboardBloc>().add(
+                                RespondToRequest(consultation.id, 'active'),
+                              );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                        child: const Text(
+                          'Accept',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            if (isPending) ...[
-              IconButton(
-                icon: const Icon(Icons.check_circle_rounded, color: Colors.green),
-                onPressed: () {
-                  context.read<DoctorDashboardBloc>().add(
-                    RespondToRequest(consultation.id, 'active'),
-                  );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.cancel_rounded, color: Colors.red),
-                onPressed: () {
-                  context.read<DoctorDashboardBloc>().add(
-                    RespondToRequest(consultation.id, 'cancelled'),
-                  );
-                },
-              ),
-            ] else ...[
-              StatusBadge(
-                text: consultation.status.toUpperCase(),
-                color: isActive ? AppColors.primary : AppColors.textTertiary,
-              ),
-              const SizedBox(width: 12),
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
             ],
           ],
         ),
@@ -429,180 +619,245 @@ class _PatientCard extends StatelessWidget {
   }
 }
 
-class _WorkplacesList extends StatelessWidget {
-  final List workplaces;
-  const _WorkplacesList({required this.workplaces});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 110,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: workplaces.isEmpty ? 1 : workplaces.length,
-        itemBuilder: (context, index) {
-          if (workplaces.isEmpty) {
-            return AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: const Center(child: Text('No workplaces added yet')),
-            );
-          }
-          final wp = workplaces[index];
-          return Container(
-            width: 200,
-            margin: const EdgeInsets.only(right: 16),
-            child: AppCard(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    wp.name,
-                    style: AppTypography.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(wp.address, style: AppTypography.bodySmall, maxLines: 1),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _QuickActionsGrid extends StatelessWidget {
-  const _QuickActionsGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _ActionItem(
-          icon: Icons.edit_note_rounded,
-          label: 'Article',
-          color: AppColors.reportCard,
-        ),
-        _ActionItem(
-          icon: Icons.add_a_photo_outlined,
-          label: 'Story',
-          color: AppColors.secondary,
-        ),
-        _ActionItem(
-          icon: Icons.history_rounded,
-          label: 'History',
-          color: AppColors.primary,
-        ),
-        _ActionItem(
-          icon: Icons.settings_outlined,
-          label: 'Settings',
-          color: AppColors.textTertiary,
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _ActionItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+class _OpdScheduleSection extends StatelessWidget {
+  const _OpdScheduleSection();
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const Text(
+          'OPD Schedule',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 12),
         AppCard(
           padding: const EdgeInsets.all(16),
-          borderRadius: 20,
-          color: color.withOpacity(0.1),
-          border: Border.all(color: Colors.transparent),
-          child: Icon(icon, color: color, size: 28),
+          borderRadius: 24,
+          border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F0FF),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_outlined,
+                  color: Color(0xFF004AC6),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      '4:00 PM - 8:00 PM',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Next Session at Hamro Clinic',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        Text(label, style: AppTypography.labelLarge),
       ],
     );
   }
 }
 
-class _DoctorBottomNav extends StatelessWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onTap;
+class _WorkplaceSection extends StatelessWidget {
+  final List workplaces;
 
-  const _DoctorBottomNav({required this.selectedIndex, required this.onTap});
+  const _WorkplaceSection({required this.workplaces});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 70,
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(32),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _NavIcon(
-            icon: Icons.dashboard_rounded, 
-            isSelected: selectedIndex == 0,
-            onTap: () => onTap(0),
+    final String name = workplaces.isNotEmpty ? workplaces[0].name : 'Hamro Clinic';
+    final String address = workplaces.isNotEmpty ? workplaces[0].address : 'Kathmandu, Nepal';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Workplace',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            TextButton(
+              onPressed: () {},
+              child: const Text(
+                'Add New',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF004AC6),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        AppCard(
+          padding: const EdgeInsets.all(16),
+          borderRadius: 24,
+          border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F0FF),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.location_on_outlined,
+                  color: Color(0xFF004AC6),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      address,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          _NavIcon(
-            icon: Icons.calendar_month_rounded, 
-            isSelected: selectedIndex == 1,
-            onTap: () => onTap(1),
-          ),
-          _NavIcon(
-            icon: Icons.message_rounded, 
-            isSelected: selectedIndex == 2,
-            onTap: () => onTap(2),
-          ),
-          _NavIcon(
-            icon: Icons.person_rounded, 
-            isSelected: selectedIndex == 3,
-            onTap: () => onTap(3),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _NavIcon extends StatelessWidget {
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
+class _PremiumDoctorBottomNav extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onTap;
 
-  const _NavIcon({
-    required this.icon, 
-    required this.onTap, 
-    this.isSelected = false,
-  });
+  const _PremiumDoctorBottomNav({required this.selectedIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      height: 80,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 20,
+            offset: Offset(0, -5),
+          )
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(0, Icons.home_filled, 'Home'),
+          _buildNavItem(1, Icons.assignment_turned_in_outlined, 'Consultations'),
+          _buildNavItem(2, Icons.library_books_outlined, 'Articles'),
+          _buildNavItem(3, Icons.person_outline_rounded, 'Profile'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final bool isSelected = selectedIndex == index;
+
+    if (isSelected) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF004AC6),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Icon(
-          icon,
-          color: isSelected ? AppColors.white : AppColors.grey,
-          size: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFF94A3B8), size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -620,7 +875,7 @@ class _DoctorPlaceholderPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -679,6 +934,352 @@ class _ErrorView extends StatelessWidget {
               LoadDoctorDashboardData(),
             ),
             child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveConsultationsTab extends StatelessWidget {
+  final User user;
+  final DoctorDashboardLoaded state;
+
+  const _ActiveConsultationsTab({required this.user, required this.state});
+
+  String _formatMessageTime(String? timestampStr) {
+    if (timestampStr == null || timestampStr.isEmpty) return '';
+    try {
+      final date = DateTime.parse(timestampStr).toLocal();
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      if (diff.inDays == 0) {
+        final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+        final minute = date.minute.toString().padLeft(2, '0');
+        final period = date.hour >= 12 ? 'PM' : 'AM';
+        return '$hour:$minute $period';
+      } else if (diff.inDays == 1) {
+        return 'Yesterday';
+      } else if (diff.inDays < 7) {
+        switch (date.weekday) {
+          case 1: return 'Mon';
+          case 2: return 'Tue';
+          case 3: return 'Wed';
+          case 4: return 'Thu';
+          case 5: return 'Fri';
+          case 6: return 'Sat';
+          default: return 'Sun';
+        }
+      } else {
+        return '${date.month}/${date.day}';
+      }
+    } catch (_) {
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeConsults = state.consultations.where((c) => c.status == 'active').toList();
+
+    final List<Widget> activeWidgets = [];
+    if (activeConsults.isEmpty) {
+      activeWidgets.add(_LiveConsultationCard(
+        name: 'Samyog',
+        recentMessage: "I'm feeling much better, but I did notice a slight palpitation...",
+        timeText: '10:30 AM',
+        typeIcon: Icons.chat_bubble_outline_rounded,
+        badgeColor: const Color(0xFF004AC6),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ConsultationRoomPage(
+                consultationId: 'samyog_text_session',
+                currentUserId: user.id,
+                otherUserName: 'Samyog',
+                isDoctor: true,
+              ),
+            ),
+          );
+        },
+      ));
+      activeWidgets.add(const SizedBox(height: 12));
+      activeWidgets.add(_LiveConsultationCard(
+        name: 'Aditi',
+        recentMessage: 'Active Video Call Session',
+        timeText: 'Yesterday',
+        typeIcon: Icons.videocam_outlined,
+        badgeColor: const Color(0xFF10B981),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ConsultationRoomPage(
+                consultationId: 'aditi_video_session',
+                currentUserId: user.id,
+                otherUserName: 'Aditi',
+                isDoctor: true,
+              ),
+            ),
+          );
+        },
+      ));
+    } else {
+      for (final consult in activeConsults) {
+        final lastMsg = consult.messages.isNotEmpty
+            ? consult.messages.last['text'] as String
+            : 'Consultation started. Tap to chat.';
+        
+        final timeText = consult.messages.isNotEmpty
+            ? _formatMessageTime(consult.messages.last['timestamp'] as String?)
+            : _formatMessageTime(consult.createdAt);
+            
+        final isVideo = consult.id.contains('video');
+        final typeIcon = isVideo ? Icons.videocam_outlined : Icons.chat_bubble_outline_rounded;
+        final badgeColor = isVideo ? const Color(0xFF10B981) : const Color(0xFF004AC6);
+
+         activeWidgets.add(_LiveConsultationCard(
+          name: consult.patientName ?? 'Patient',
+          patientAvatar: consult.patientAvatar,
+          recentMessage: lastMsg,
+          timeText: timeText,
+          typeIcon: typeIcon,
+          badgeColor: badgeColor,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ConsultationRoomPage(
+                  consultationId: consult.id,
+                  currentUserId: user.id,
+                  otherUserName: consult.patientName ?? 'Patient',
+                  otherUserAvatar: consult.patientAvatar,
+                  isDoctor: true,
+                ),
+              ),
+            ).then((_) {
+              if (context.mounted) {
+                context.read<DoctorDashboardBloc>().add(LoadDoctorDashboardData());
+              }
+            });
+          },
+        ));
+        activeWidgets.add(const SizedBox(height: 12));
+      }
+      if (activeWidgets.isNotEmpty) {
+        activeWidgets.removeLast();
+      }
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async =>
+          context.read<DoctorDashboardBloc>().add(LoadDoctorDashboardData()),
+      color: AppColors.primary,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          const _SliverConsultationsHeader(),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF004AC6),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Live Now',
+                      style: TextStyle(
+                        fontFamily: AppTypography.fontFamily,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ...activeWidgets,
+                const SizedBox(height: 40),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SliverConsultationsHeader extends StatelessWidget {
+  const _SliverConsultationsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        child: Row(
+          children: [
+            const Text(
+              'Active Consultations',
+              style: TextStyle(
+                fontFamily: AppTypography.fontFamily,
+                fontSize: 22,
+                color: Color(0xFF004AC6),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              height: 44,
+              width: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFFEEF2F6),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.search_rounded,
+                  color: Color(0xFF1E293B),
+                  size: 22,
+                ),
+                onPressed: () {},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveConsultationCard extends StatelessWidget {
+  final String name;
+  final String? patientAvatar;
+  final String recentMessage;
+  final String timeText;
+  final IconData typeIcon;
+  final Color badgeColor;
+  final VoidCallback onTap;
+
+  const _LiveConsultationCard({
+    required this.name,
+    this.patientAvatar,
+    required this.recentMessage,
+    required this.timeText,
+    required this.typeIcon,
+    required this.badgeColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarBytes = _getAvatarBytes(patientAvatar);
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      borderRadius: 18,
+      color: Colors.white,
+      border: Border.all(color: const Color(0xFFEEF2F6), width: 1.5),
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Avatar with badge
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: badgeColor.withOpacity(0.08),
+                backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes) : null,
+                child: avatarBytes == null
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'P',
+                        style: TextStyle(
+                          fontFamily: AppTypography.fontFamily,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: badgeColor,
+                        ),
+                      )
+                    : null,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Icon(
+                    typeIcon,
+                    color: Colors.white,
+                    size: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          // Name and Message
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: AppTypography.fontFamily,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeText,
+                      style: const TextStyle(
+                        fontFamily: AppTypography.fontFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  recentMessage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: AppTypography.fontFamily,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

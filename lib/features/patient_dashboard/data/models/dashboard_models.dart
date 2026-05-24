@@ -67,9 +67,11 @@ class ConsultationModel extends Consultation {
     required super.id,
     required super.doctorName,
     super.patientName,
+    super.patientAvatar,
     required super.doctorSpecialty,
     required super.status,
     required super.createdAt,
+    super.messages,
   });
 
   factory ConsultationModel.fromJson(Map<String, dynamic> json) {
@@ -77,9 +79,15 @@ class ConsultationModel extends Consultation {
       id: json['_id'] ?? '',
       doctorName: json['doctor']?['name'] ?? 'Doctor',
       patientName: json['patient']?['name'] ?? 'Patient',
+      patientAvatar: json['patient']?['profile']?['avatar'],
       doctorSpecialty: json['doctor']?['doctorDetails']?['specialty'] ?? 'Specialist',
       status: json['status'] ?? 'pending',
       createdAt: json['createdAt'] ?? '',
+      messages: (json['messages'] as List?)?.map((m) => {
+        'senderId': m['sender'] ?? '',
+        'text': m['text'] ?? '',
+        'timestamp': m['timestamp'] ?? '',
+      }).toList() ?? const [],
     );
   }
 }
