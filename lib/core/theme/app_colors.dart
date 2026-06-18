@@ -4,7 +4,7 @@ class AppColors {
   // Brand Colors - Stitch Design System
   static const Color primary = Color(0xFF004AC6); // Soft Navy
   static const Color primarySoft = Color(0xFFDBE1FF);
-  
+
   static const Color secondary = Color(0xFF006C49); // Health Emerald/Green
   static const Color secondarySoft = Color(0xFF6CF8BB);
 
@@ -21,7 +21,7 @@ class AppColors {
   static const Color textPrimary = Color(0xFF131B2E);
   static const Color textSecondary = Color(0xFF434655);
   static const Color textTertiary = Color(0xFF737686);
-  
+
   static const Color border = Color(0xFFC3C6D7);
   static const Color divider = Color(0xFFEAEDFF);
   static const Color grey = Color(0xFF9E9E9E);
@@ -39,4 +39,13 @@ class AppColors {
   static const Color appointmentCard = Color(0xFF004AC6);
   static const Color reportCard = Color(0xFF7B61FF);
   static const Color pharmacyCard = Color(0xFFFF9F43);
+
+  // Dark theme colors
+  static const Color darkBackground = Color(0xFF072146); // deep navy
+  static const Color darkSurface = Color(0xFF0F335F);
+  static const Color darkPrimary = Color(0xFF1E88E5); // bright blue for CTAs
+  static const Color darkAccent = Color(0xFF00BFA5); // teal accent
+  static const Color textOnDarkPrimary = Color(0xFFFFFFFF);
+  static const Color textOnDarkSecondary = Color(0xDEFFFFFF); // 0.87 alpha
+  static const Color dividerDark = Color(0xFF1E3A5F);
 }

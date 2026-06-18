@@ -44,6 +44,7 @@ dependencies:
   flutter_webrtc: ^1.4.1
   permission_handler: ^12.0.1
   image_picker: ^1.1.2
+  go_router: ^17.0.0
 
 dev_dependencies:
   flutter_test:
@@ -68,7 +69,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/logo.png
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

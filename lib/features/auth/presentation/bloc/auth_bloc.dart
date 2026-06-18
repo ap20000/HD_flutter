@@ -6,6 +6,10 @@ import '../../domain/usecases/update_avatar_usecase.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
+class FakeAuthBloc extends Cubit<AuthState> {
+  FakeAuthBloc() : super(AuthInitial());
+}
+
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final LoginUseCase loginUseCase;
   final RegisterUseCase registerUseCase;
@@ -25,12 +29,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<UpdateAvatarRequested>(_onUpdateAvatarRequested);
   }
 
-  Future<void> _onLoginSubmitted(LoginSubmitted event, Emitter<AuthState> emit) async {
+  Future<void> _onLoginSubmitted(
+    LoginSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
     emit(AuthLoading());
-    final result = await loginUseCase(LoginParams(
-      loginId: event.loginId,
-      password: event.password,
-    ));
+    final result = await loginUseCase(
+      LoginParams(loginId: event.loginId, password: event.password),
+    );
 
     result.fold(
       (failure) => emit(AuthError(failure.message)),
@@ -38,15 +44,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
   }
 
-  Future<void> _onRegisterSubmitted(RegisterSubmitted event, Emitter<AuthState> emit) async {
+  Future<void> _onRegisterSubmitted(
+    RegisterSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
     emit(AuthLoading());
-    final result = await registerUseCase(RegisterParams(
-      name: event.name,
-      email: event.email,
-      phone: event.phone,
-      password: event.password,
-      role: event.role,
-    ));
+    final result = await registerUseCase(
+      RegisterParams(
+        name: event.name,
+        email: event.email,
+        phone: event.phone,
+        password: event.password,
+        role: event.role,
+      ),
+    );
 
     result.fold(
       (failure) => emit(AuthError(failure.message)),
@@ -54,12 +65,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
   }
 
-  Future<void> _onVerifyOtpSubmitted(VerifyOtpSubmitted event, Emitter<AuthState> emit) async {
+  Future<void> _onVerifyOtpSubmitted(
+    VerifyOtpSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
     emit(AuthLoading());
-    final result = await verifyOtpUseCase(VerifyOtpParams(
-      phone: event.phone,
-      code: event.code,
-    ));
+    final result = await verifyOtpUseCase(
+      VerifyOtpParams(phone: event.phone, code: event.code),
+    );
 
     result.fold(
       (failure) => emit(AuthError(failure.message)),
@@ -71,11 +84,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthUnauthenticated());
   }
 
-  Future<void> _onUpdateAvatarRequested(UpdateAvatarRequested event, Emitter<AuthState> emit) async {
+  Future<void> _onUpdateAvatarRequested(
+    UpdateAvatarRequested event,
+    Emitter<AuthState> emit,
+  ) async {
     emit(AuthLoading());
-    final result = await updateAvatarUseCase(UpdateAvatarParams(
-      base64Image: event.base64Image,
-    ));
+    final result = await updateAvatarUseCase(
+      UpdateAvatarParams(base64Image: event.base64Image),
+    );
 
     result.fold(
       (failure) => emit(AuthError(failure.message)),

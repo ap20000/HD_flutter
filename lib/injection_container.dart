@@ -30,7 +30,7 @@ final sl = GetIt.instance;
 
 Future<void> init() async {
   // Features - Auth
-  
+
   // Bloc
   sl.registerFactory(
     () => AuthBloc(
@@ -101,7 +101,7 @@ Future<void> init() async {
 
   // Data sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
-    () => AuthRemoteDataSourceImpl(dio: sl()),
+    () => AuthRemoteDataSourceImpl(dio: sl<Dio>()),
   );
   sl.registerLazySingleton<PatientDashboardRemoteDataSource>(
     () => PatientDashboardRemoteDataSourceImpl(dio: sl()),

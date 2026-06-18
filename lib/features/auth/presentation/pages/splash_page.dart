@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import 'login_page.dart';
@@ -18,7 +19,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   late Animation<double> _logoScale;
   late Animation<double> _logoOpacity;
   late Animation<double> _logoPulse;
-  
+
   late Animation<double> _textOpacity;
   late Animation<double> _textSlide;
 
@@ -29,7 +30,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     // 1. Entry Animation Sequence (1.5 seconds)
     _entryController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1900),
     );
 
     // Smooth logo scale-in
@@ -71,10 +72,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     );
 
     _logoPulse = Tween<double>(begin: 1.0, end: 1.025).animate(
-      CurvedAnimation(
-        parent: _pulseController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
     // Kick off entry sequence and chain breathing loop
@@ -88,20 +86,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
 
   void _navigateToLogin() {
     if (!mounted) return;
-
-    // Premium 600ms cross-fade transition
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 600),
-      ),
-    );
+    context.go('/login');
   }
 
   @override
@@ -125,7 +110,10 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
                 children: [
                   // Animated Logo Container
                   AnimatedBuilder(
-                    animation: Listenable.merge([_entryController, _pulseController]),
+                    animation: Listenable.merge([
+                      _entryController,
+                      _pulseController,
+                    ]),
                     builder: (context, child) {
                       return Transform.scale(
                         scale: _logoScale.value * _logoPulse.value,
@@ -139,7 +127,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
                       height: 125, // Prominent, sharp logo presentation
                       width: 125,
                       child: Image.asset(
-                        'assets/images/logo.png',
+                        'assets/images/newlogo.png',
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
                           // Clean, stylized vector fallback
@@ -169,7 +157,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
                     child: Column(
                       children: [
                         Text(
-                          'Hamro Doctor',
+                          'ThirdPole Health',
                           style: AppTypography.display.copyWith(
                             color: AppColors.primary,
                             fontSize: 30,

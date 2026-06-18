@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/auth_bloc.dart';
-import '../bloc/auth_event.dart';
-import '../bloc/auth_state.dart';
 
-class OtpVerificationPage extends StatefulWidget {
-  final String phone;
-  const OtpVerificationPage({super.key, required this.phone});
-
-  @override
-  State<OtpVerificationPage> createState() => _OtpVerificationPageState();
+void main() {
+  runApp(const OtpApp());
 }
 
-class _OtpVerificationPageState extends State<OtpVerificationPage>
-    with SingleTickerProviderStateMixin {
+class OtpApp extends StatelessWidget {
+  const OtpApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: OtpPage(phone: "+977 9800000000"),
+    );
+  }
+}
+
+class OtpPage extends StatefulWidget {
+  final String phone;
+  const OtpPage({super.key, required this.phone});
+
+  @override
+  State<OtpPage> createState() => _OtpPageState();
+}
+
+class _OtpPageState extends State<OtpPage> with SingleTickerProviderStateMixin {
   final List<TextEditingController> controllers = List.generate(
     6,
     (_) => TextEditingController(),
