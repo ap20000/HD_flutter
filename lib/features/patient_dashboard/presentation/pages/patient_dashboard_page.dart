@@ -11,6 +11,8 @@ import '../bloc/patient_dashboard_bloc.dart';
 import '../bloc/patient_dashboard_event.dart';
 import '../bloc/patient_dashboard_state.dart';
 import '../widgets/premium_bottom_nav.dart';
+import '../../../consultation_room/presentation/pages/consultation_room_page.dart';
+import 'book_appointment_page.dart';
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -39,7 +41,21 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
           backgroundColor: isDark
               ? AppColors.darkBackground
               : const Color(0xFFF8FAFC),
-          body: SafeArea(child: _buildBody()),
+          body: BlocListener<PatientDashboardBloc, PatientDashboardState>(
+            listener: (context, state) {
+              if (state is PatientDashboardLoaded) {
+                // Check if any consultation was just requested and we're notified
+                final requested = state.consultations
+                    .where((c) => c.status == 'pending')
+                    .toList();
+                if (requested.isNotEmpty && _selectedIndex != 1) {
+                  // Optional: Automatically switch to consultations tab
+                  // setState(() => _selectedIndex = 1);
+                }
+              }
+            },
+            child: SafeArea(child: _buildBody()),
+          ),
           bottomNavigationBar: PremiumBottomNav(
             selectedIndex: _selectedIndex,
             onTap: (index) {
@@ -79,12 +95,16 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
           },
         );
       case 1:
-        return _EmptyFeaturePage(
-          title: 'Consultations',
-          icon: Icons.assignment_outlined,
-          description:
-              'Start a consultation with any of our specialists to discuss your health concerns.',
-          isDark: Theme.of(context).brightness == Brightness.dark,
+        return BlocBuilder<PatientDashboardBloc, PatientDashboardState>(
+          builder: (context, state) {
+            return _ConsultationsPage(
+              isDark: Theme.of(context).brightness == Brightness.dark,
+              consultations: state is PatientDashboardLoaded
+                  ? state.consultations
+                  : [],
+              currentUserId: widget.user.id,
+            );
+          },
         );
       case 2:
         return _EmptyFeaturePage(
@@ -225,14 +245,26 @@ class _DashboardBody extends StatelessWidget {
         ),
         slivers: [
           SliverAppBar(
-            backgroundColor: Colors.transparent,
+            backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
             elevation: 0,
             pinned: true,
+            leadingWidth: 42,
+            leading: Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.bolt, color: Colors.white, size: 20),
+              ),
+            ),
             title: Text(
               'Hamro Doctor',
               style: TextStyle(
                 color: textPrimary,
                 fontWeight: FontWeight.w700,
+                fontSize: 18,
                 fontFamily: AppTypography.fontFamily,
               ),
             ),
@@ -242,32 +274,29 @@ class _DashboardBody extends StatelessWidget {
                 icon: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Icon(Icons.notifications_outlined, color: textPrimary),
+                    Icon(
+                      Icons.notifications_none_outlined,
+                      color: textPrimary,
+                      size: 26,
+                    ),
                     if (_unreadNotifications > 0)
                       Positioned(
-                        right: -2,
-                        top: -2,
+                        right: 2,
+                        top: 2,
                         child: CircleAvatar(
-                          radius: 8,
+                          radius: 4,
                           backgroundColor: AppColors.error,
-                          child: Text(
-                            '$_unreadNotifications',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                         ),
                       ),
                   ],
                 ),
                 tooltip: 'Notifications',
               ),
+              const SizedBox(width: 8),
             ],
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 _buildWelcomeHeader(
@@ -276,132 +305,100 @@ class _DashboardBody extends StatelessWidget {
                   textPrimary,
                   textSecondary,
                 ),
-                const SizedBox(height: 12),
-                _SearchBar(isDark: isDark, onTap: () => _onSearchTap(context)),
                 const SizedBox(height: 16),
+                _SearchBar(isDark: isDark, onTap: () => _onSearchTap(context)),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 100,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: state.doctors.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return _StoryAvatar(
+                          text: 'Your Story',
+                          onTap: () => _onStoryTap(context, 'Your Story'),
+                        );
+                      }
+
+                      final doctor = state.doctors[index - 1];
+                      return _StoryAvatar(
+                        text: 'Dr. ${doctor.name.split(" ").last}',
+                        onTap: () => _onStoryTap(context, doctor.name),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _ConsultationCard(onTap: () => _onConsultNow(context)),
+                const SizedBox(height: 24),
                 _SectionTitle(
-                  title: 'Health Services',
+                  title: 'Our Services',
                   textColor: textPrimary,
                   onSeeAll: () {},
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 _ServicesCarousel(
                   isDark: isDark,
                   services: _healthServices,
                   onTap: (s) => _onServiceTap(context, s),
                 ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ConsultationCard(
-                        onTap: () => _onConsultNow(context),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _AppointmentPreview(
-                        isDark: isDark,
-                        appointments: _upcomingAppointments,
-                        onTap: () => _onAppointmentTap(context),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 24),
+                _UpcomingAppointmentCard(
+                  isDark: isDark,
+                  appointment: _upcomingAppointments.isNotEmpty
+                      ? _upcomingAppointments.first
+                      : null,
+                  onTap: () => _onAppointmentTap(context),
                 ),
-                const SizedBox(height: 18),
-                if (state.latestRecord != null) ...[
-                  _SectionTitle(
-                    title: 'Health Summary',
-                    textColor: textPrimary,
-                    onSeeAll: () {},
-                  ),
-                  const SizedBox(height: 8),
-                  _BmiSummaryCard(
-                    isDark: isDark,
-                    bmi: state.latestRecord!.bmi,
-                    weight: state.latestRecord!.weight,
-                    height: state.latestRecord!.height,
-                  ),
-                  const SizedBox(height: 18),
-                ],
+                const SizedBox(height: 24),
                 _SectionTitle(
-                  title: 'Health Packages',
+                  title: 'Top Specialists',
                   textColor: textPrimary,
-                  onSeeAll: () {},
+                  onSeeAll: () => _onConsultNow(context),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 SizedBox(
-                  height: 110,
+                  height: 160,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: 3,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemCount: state.doctors.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
                     itemBuilder: (context, index) {
-                      return _PackageCard(
+                      final doctor = state.doctors[index];
+                      return _SpecialistCard(
                         isDark: isDark,
-                        title: 'Package ${index + 1}',
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 18),
-                if (state.doctors.isNotEmpty) ...[
-                  _SectionTitle(
-                    title: 'Top Specialists',
-                    textColor: textPrimary,
-                    onSeeAll: () => _onConsultNow(context),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 120,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: state.doctors.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final doctor = state.doctors[index];
-                        return _SpecialistCard(
-                          isDark: isDark,
-                          name: doctor.name,
-                          specialty: doctor.specialty,
-                          onTap: () {
+                        name: doctor.name,
+                        specialty: doctor.specialty,
+                        onTap: () async {
+                          final confirmed = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BookAppointmentPage(
+                                doctor: doctor,
+                                isDark: isDark,
+                              ),
+                            ),
+                          );
+
+                          if (confirmed == true && context.mounted) {
                             context.read<PatientDashboardBloc>().add(
                               RequestConsultation(doctor.id),
                             );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                ],
-                _SectionTitle(
-                  title: 'Stories',
-                  textColor: textPrimary,
-                  onSeeAll: () {},
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 86,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _storyTitles.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      return _StoryAvatar(
-                        text: _storyTitles[index],
-                        onTap: () => _onStoryTap(context, _storyTitles[index]),
+                          }
+                        },
                       );
                     },
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 24),
                 _SectionTitle(
-                  title: 'Recent Articles',
+                  title: 'Health Articles',
                   textColor: textPrimary,
                   onSeeAll: onArticlesTab,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 if (state.articles.isEmpty)
                   _EmptyArticlesPlaceholder(isDark: isDark)
                 else
@@ -409,18 +406,17 @@ class _DashboardBody extends StatelessWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: state.articles.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, idx) {
                       final article = state.articles[idx];
                       return _ArticleCard(
                         isDark: isDark,
-                        title: article.title,
-                        author: article.author,
+                        article: article,
                         onTap: () => _onArticleTap(context, article),
                       );
                     },
                   ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
               ]),
             ),
           ),
@@ -435,44 +431,30 @@ class _DashboardBody extends StatelessWidget {
     Color textPrimary,
     Color textSecondary,
   ) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: AppColors.secondary.withOpacity(0.1),
-          child: Text(
-            userName.isNotEmpty ? userName[0].toUpperCase() : 'P',
-            style: const TextStyle(
-              color: AppColors.secondary,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
+        Row(
+          children: [
+            Text(
+              'Namaste, ${userName.split(" ").first}!',
+              style: AppTypography.titleLarge.copyWith(
+                fontWeight: FontWeight.w800,
+                fontSize: 24,
+                color: textPrimary,
+              ),
             ),
-          ),
+            const SizedBox(width: 4),
+            const Text('👋', style: TextStyle(fontSize: 22)),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome back,',
-                style: AppTypography.bodyMedium.copyWith(color: textSecondary),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                userName,
-                style: AppTypography.titleLarge.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: textPrimary,
-                ),
-              ),
-            ],
+        const SizedBox(height: 4),
+        Text(
+          'How can we help you today?',
+          style: AppTypography.bodyMedium.copyWith(
+            color: textSecondary,
+            fontSize: 15,
           ),
-        ),
-        IconButton(
-          onPressed: onProfileTap,
-          icon: Icon(Icons.person_outline, color: textPrimary),
-          tooltip: 'Profile',
         ),
       ],
     );
@@ -490,44 +472,43 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Search doctors, hospitals, services',
+      label: 'Search doctors, hospitals, or services...',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Row(
             children: [
               Icon(
-                Icons.search_outlined,
-                color: isDark ? AppColors.textOnDarkSecondary : Colors.black54,
+                Icons.search,
+                color: isDark ? AppColors.textOnDarkSecondary : Colors.black45,
+                size: 20,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Search doctors, hospitals, services',
+                  'Search doctors, hospitals, or services...',
                   style: TextStyle(
                     color: isDark
                         ? AppColors.textOnDarkSecondary
-                        : Colors.black54,
+                        : Colors.black45,
+                    fontSize: 14,
                   ),
                 ),
-              ),
-              Icon(
-                Icons.filter_list,
-                color: isDark ? AppColors.textOnDarkSecondary : Colors.black54,
               ),
             ],
           ),
@@ -556,13 +537,33 @@ class _SectionTitle extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
             color: textColor,
             fontFamily: AppTypography.fontFamily,
           ),
         ),
-        TextButton(onPressed: onSeeAll, child: const Text('See all')),
+        TextButton(
+          onPressed: onSeeAll,
+          child: Row(
+            children: [
+              const Text(
+                'View All',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.arrow_forward,
+                size: 14,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -581,56 +582,66 @@ class _ServicesCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 98,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: services.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final s = services[index];
-          return GestureDetector(
-            onTap: () => onTap(s),
-            child: Container(
-              width: 140,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+    final List<Map<String, dynamic>> serviceDetails = [
+      {
+        'name': 'General',
+        'icon': Icons.medical_services_outlined,
+        'color': const Color(0xFFE3F2FD),
+        'iconColor': const Color(0xFF1976D2),
+      },
+      {
+        'name': 'Cardiology',
+        'icon': Icons.favorite_outline,
+        'color': const Color(0xFFFFEBEE),
+        'iconColor': const Color(0xFFD32F2F),
+      },
+      {
+        'name': 'Genetics',
+        'icon': Icons.biotech_outlined,
+        'color': const Color(0xFFF3E5F5),
+        'iconColor': const Color(0xFF7B1FA2),
+      },
+      {
+        'name': 'Diagnostic',
+        'icon': Icons.analytics_outlined,
+        'color': const Color(0xFFE8F5E9),
+        'iconColor': const Color(0xFF388E3C),
+      },
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: serviceDetails.map((service) {
+        return GestureDetector(
+          onTap: () => onTap(service['name']),
+          child: Column(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : service['color'],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  service['icon'],
+                  color: isDark ? Colors.white : service['iconColor'],
+                  size: 28,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: const Icon(
-                      Icons.medical_services,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    s,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.white : AppColors.textPrimary,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 8),
+              Text(
+                service['name'],
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.white : AppColors.textPrimary,
+                ),
               ),
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -644,55 +655,107 @@ class _ConsultationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Start online consultation',
+      label: 'Consult with a Doctor',
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 120,
-          padding: const EdgeInsets.all(12),
+          width: double.infinity,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.primary, Color(0xFF2E6FFF)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.15),
-                blurRadius: 10,
-              ),
-            ],
+            color: const Color(0xFFE3F2FD).withOpacity(0.5),
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              const Text(
-                'Online Consultation',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2196F3),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Live Consultation',
+                          style: TextStyle(
+                            color: Color(0xFF2196F3),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Consult with a\nDoctor',
+                      style: TextStyle(
+                        color: Color(0xFF1A1A1A),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 20,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Connect instantly with\nverified specialists available\n24/7.',
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Consult Now',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Chat or video call with certified doctors',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              const Spacer(),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                top: 0,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
                   ),
-                  onPressed: onTap,
-                  child: const Text(
-                    'Consult Now',
-                    style: TextStyle(color: AppColors.primary, fontSize: 12),
+                  child: Image.network(
+                    'https://img.freepik.com/free-photo/smiling-female-doctor-white-coat-standing-with-clipboard-hand_231208-12965.jpg?t=st=1718712000~exp=1718715600~hmac=1234567890abcdef', // Mock image
+                    fit: BoxFit.cover,
+                    width: 150,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 150,
+                      color: Colors.grey.withOpacity(0.1),
+                      child: const Icon(
+                        Icons.person,
+                        size: 80,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -704,141 +767,64 @@ class _ConsultationCard extends StatelessWidget {
   }
 }
 
-class _AppointmentPreview extends StatelessWidget {
+class _UpcomingAppointmentCard extends StatelessWidget {
   final bool isDark;
-  final List<String> appointments;
+  final String? appointment;
   final VoidCallback onTap;
 
-  const _AppointmentPreview({
+  const _UpcomingAppointmentCard({
     required this.isDark,
-    required this.appointments,
+    required this.appointment,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-            blurRadius: 6,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Appointments',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.white : AppColors.textPrimary,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F8E9).withOpacity(0.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.calendar_today_outlined,
+                color: Color(0xFF4CAF50),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: appointments.isEmpty
-                ? Text(
-                    'No upcoming appointments',
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Upcoming Appointment',
                     style: TextStyle(
-                      color: isDark
-                          ? AppColors.textOnDarkSecondary
-                          : Colors.black54,
-                    ),
-                  )
-                : Text(
-                    appointments.first,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isDark ? AppColors.white : AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Color(0xFF2E7D32),
                     ),
                   ),
-          ),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: TextButton(onPressed: onTap, child: const Text('View all')),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BmiSummaryCard extends StatelessWidget {
-  final bool isDark;
-  final double bmi;
-  final double weight;
-  final double height;
-
-  const _BmiSummaryCard({
-    required this.isDark,
-    required this.bmi,
-    required this.weight,
-    required this.height,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.monitor_heart_outlined,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'BMI ${bmi.toStringAsFixed(1)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: isDark ? AppColors.white : AppColors.textPrimary,
+                  const SizedBox(height: 2),
+                  Text(
+                    appointment ?? 'No upcoming appointments',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${weight.toStringAsFixed(1)} kg • ${height.toStringAsFixed(0)} cm',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark
-                        ? AppColors.textOnDarkSecondary
-                        : AppColors.textSecondary,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(Icons.arrow_forward, size: 18, color: Colors.black26),
+          ],
+        ),
       ),
     );
   }
@@ -846,45 +832,138 @@ class _BmiSummaryCard extends StatelessWidget {
 
 class _PackageCard extends StatelessWidget {
   final bool isDark;
-  final String title;
+  final int index;
 
-  const _PackageCard({required this.isDark, required this.title});
+  const _PackageCard({required this.isDark, required this.index});
 
   @override
   Widget build(BuildContext context) {
+    final displayTitle = index == 0
+        ? 'Full Body Checkup'
+        : 'Heart Health Package';
+    final displayPrice = index == 0 ? '4,500' : '3,200';
+    final displayOldPrice = index == 0 ? '6,000' : null;
+    final count = index == 0 ? 64 : 12;
+
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(12),
+      width: 200,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-            blurRadius: 6,
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: isDark ? AppColors.white : AppColors.textPrimary,
+          Stack(
+            children: [
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    index == 0 ? Icons.person : Icons.favorite,
+                    size: 60,
+                    color: Colors.grey.withOpacity(0.3),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '$count Tests Included',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: isDark ? AppColors.white : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                      'Rs. $displayPrice',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (displayOldPrice != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        'Rs. $displayOldPrice',
+                        style: const TextStyle(
+                          decoration: TextDecoration.lineThrough,
+                          color: Colors.black26,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.5),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'Book Package',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Includes consultation + tests',
-            style: TextStyle(
-              color: isDark ? AppColors.textOnDarkSecondary : Colors.black54,
-              fontSize: 12,
-            ),
-          ),
-          const Spacer(),
-          ElevatedButton(onPressed: () {}, child: const Text('View')),
         ],
       ),
     );
@@ -909,46 +988,63 @@ class _SpecialistCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(12),
+        width: 150,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDark ? Colors.white.withOpacity(0.08) : AppColors.border,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: AppColors.primarySoft,
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : 'D',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 32,
+                backgroundColor: AppColors.primarySoft,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : 'D',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
                 ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 12),
             Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 13,
+                fontSize: 14,
                 color: isDark ? AppColors.white : AppColors.textPrimary,
               ),
             ),
+            const SizedBox(height: 4),
             Text(
               specialty,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 color: isDark
                     ? AppColors.textOnDarkSecondary
                     : AppColors.textSecondary,
@@ -973,20 +1069,31 @@ class _StoryAvatar extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          const CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.image, color: AppColors.primary),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: 72,
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 12),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: text.contains('Dr.')
+                    ? AppColors.primary
+                    : Colors.grey.withOpacity(0.3),
+                width: 2,
+              ),
             ),
+            child: CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.grey.withOpacity(0.1),
+              child: Icon(
+                text.contains('Dr.') ? Icons.person : Icons.add,
+                color: text.contains('Dr.') ? AppColors.primary : Colors.grey,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -996,14 +1103,12 @@ class _StoryAvatar extends StatelessWidget {
 
 class _ArticleCard extends StatelessWidget {
   final bool isDark;
-  final String title;
-  final String author;
+  final Article article;
   final VoidCallback onTap;
 
   const _ArticleCard({
     required this.isDark,
-    required this.title,
-    required this.author,
+    required this.article,
     required this.onTap,
   });
 
@@ -1013,61 +1118,97 @@ class _ArticleCard extends StatelessWidget {
       button: true,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
-                blurRadius: 6,
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                blurRadius: 10,
               ),
             ],
           ),
           child: Row(
             children: [
-              Container(
-                width: 72,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  color: Colors.grey.withOpacity(0.1),
+                  child: const Icon(Icons.image_outlined, color: Colors.grey),
                 ),
-                child: const Icon(Icons.article, color: AppColors.primary),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Heart Care',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.access_time,
+                          size: 10,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          '5 min read',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
                     Text(
-                      title,
+                      article.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                         color: isDark ? AppColors.white : AppColors.textPrimary,
+                        height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      author,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? AppColors.textOnDarkSecondary
-                            : AppColors.textSecondary,
-                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.trending_up,
+                          size: 12,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Trending',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.bookmark_border,
+                          size: 18,
+                          color: Colors.black45,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 14,
-                color: isDark ? AppColors.textOnDarkSecondary : Colors.black26,
               ),
             ],
           ),
@@ -1308,6 +1449,226 @@ class _EmptyFeaturePage extends StatelessWidget {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsultationsPage extends StatelessWidget {
+  final bool isDark;
+  final List<Consultation> consultations;
+  final String currentUserId;
+
+  const _ConsultationsPage({
+    required this.isDark,
+    required this.consultations,
+    required this.currentUserId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: isDark
+          ? AppColors.darkBackground
+          : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: Text(
+          'Consultations',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: isDark ? AppColors.white : AppColors.textPrimary,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+      ),
+      body: consultations.isEmpty
+          ? _buildEmptyState()
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: consultations.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final consultation = consultations[index];
+                return _FullConsultationCard(
+                  isDark: isDark,
+                  consultation: consultation,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ConsultationRoomPage(
+                          consultationId: consultation.id,
+                          currentUserId: currentUserId,
+                          otherUserName: consultation.doctorName,
+                          isDoctor: false,
+                          initialPrescription: consultation.prescription,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 64,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No consultations yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white54 : Colors.black54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullConsultationCard extends StatelessWidget {
+  final bool isDark;
+  final Consultation consultation;
+  final VoidCallback onTap;
+
+  const _FullConsultationCard({
+    required this.isDark,
+    required this.consultation,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = consultation.status == 'active'
+        ? Colors.green
+        : (consultation.status == 'pending' ? Colors.orange : Colors.grey);
+
+    final bool isAccepted = consultation.status == 'active';
+
+    return Opacity(
+      opacity: isAccepted ? 1.0 : 0.8,
+      child: InkWell(
+        onTap: isAccepted ? onTap : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: !isAccepted
+                ? Border.all(color: statusColor.withOpacity(0.3), width: 1)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    child: Text(
+                      consultation.doctorName[0],
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                  if (!isAccepted)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.05),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.hourglass_empty,
+                            size: 16,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      consultation.doctorName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      consultation.doctorSpecialty,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isAccepted ? 'ONGOING SESSION' : 'WAITING FOR APPROVAL',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: statusColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isAccepted)
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Colors.grey.shade400,
+                )
+              else
+                const Icon(Icons.lock_outline, size: 18, color: Colors.orange),
             ],
           ),
         ),

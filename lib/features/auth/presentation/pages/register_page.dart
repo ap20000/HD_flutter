@@ -201,14 +201,7 @@ class _RegisterPageState extends State<RegisterPage>
     setState(() {
       switch (field) {
         case _Field.name:
-          final v = _nameController.text.trim();
-          if (v.isEmpty) {
-            _nameError = 'Enter your full name';
-          } else if (v.length < 2) {
-            _nameError = 'Name must be at least 2 characters';
-          } else {
-            _nameError = null;
-          }
+          _nameError = null;
         case _Field.email:
           final v = _emailController.text.trim();
           if (v.isEmpty) {

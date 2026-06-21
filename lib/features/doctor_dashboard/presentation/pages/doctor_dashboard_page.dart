@@ -42,10 +42,10 @@ class _DoctorDashboardPageState extends State<DoctorDashboardPage> {
       create: (context) =>
           sl<DoctorDashboardBloc>()..add(LoadDoctorDashboardData()),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC), // Pearl White / Light Gray backdrop
-        body: SafeArea(
-          child: _buildBody(),
-        ),
+        backgroundColor: const Color(
+          0xFFF8FAFC,
+        ), // Pearl White / Light Gray backdrop
+        body: SafeArea(child: _buildBody()),
         bottomNavigationBar: _PremiumDoctorBottomNav(
           selectedIndex: _selectedIndex,
           onTap: (index) {
@@ -111,7 +111,9 @@ class _DoctorDashboardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = state.consultations.where((c) => c.status == 'pending').length;
+    final pendingCount = state.consultations
+        .where((c) => c.status == 'pending')
+        .length;
 
     return RefreshIndicator(
       onRefresh: () async =>
@@ -128,7 +130,10 @@ class _DoctorDashboardBody extends StatelessWidget {
                 const SizedBox(height: 16),
                 _DoctorOnlineStatusCard(isOnline: state.isOnline),
                 const SizedBox(height: 24),
-                _PerformanceStats(stats: state.stats, pendingCount: pendingCount),
+                _PerformanceStats(
+                  stats: state.stats,
+                  pendingCount: pendingCount,
+                ),
                 const SizedBox(height: 28),
                 _PendingRequestsSection(consultations: state.consultations),
                 const SizedBox(height: 28),
@@ -165,7 +170,10 @@ class _SliverDoctorHeader extends StatelessWidget {
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 2,
+                    ),
                   ),
                   child: CircleAvatar(
                     radius: 22,
@@ -189,7 +197,9 @@ class _SliverDoctorHeader extends StatelessWidget {
                     height: 11,
                     width: 11,
                     decoration: BoxDecoration(
-                      color: isOnline ? AppColors.success : AppColors.textTertiary,
+                      color: isOnline
+                          ? AppColors.success
+                          : AppColors.textTertiary,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
@@ -263,7 +273,8 @@ class _DoctorOnlineStatusCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: (isOnline ? AppColors.success : AppColors.textTertiary).withOpacity(0.08),
+              color: (isOnline ? AppColors.success : AppColors.textTertiary)
+                  .withOpacity(0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -287,7 +298,9 @@ class _DoctorOnlineStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isOnline ? 'You are visible to patients' : 'You are currently hidden',
+                  isOnline
+                      ? 'You are visible to patients'
+                      : 'You are currently hidden',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF94A3B8),
@@ -319,7 +332,7 @@ class _PerformanceStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final consultationCount = stats.noOfConsultations ?? 0;
-    
+
     return Row(
       children: [
         // Today's Consultations
@@ -407,7 +420,9 @@ class _PendingRequestsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingConsults = consultations.where((c) => c.status == 'pending').toList();
+    final pendingConsults = consultations
+        .where((c) => c.status == 'pending')
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,7 +463,9 @@ class _PendingRequestsSection extends StatelessWidget {
             ),
           )
         else
-          ...pendingConsults.map((cons) => _PendingRequestCard(consultation: cons)),
+          ...pendingConsults.map(
+            (cons) => _PendingRequestCard(consultation: cons),
+          ),
       ],
     );
   }
@@ -482,7 +499,14 @@ class _PendingRequestCard extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => ConsultationRoomPage(
                       consultationId: consultation.id,
-                      currentUserId: (context.findAncestorWidgetOfExactType<DoctorDashboardPage>())?.user.id ?? '',
+                      currentUserId:
+                          (context
+                                  .findAncestorWidgetOfExactType<
+                                    DoctorDashboardPage
+                                  >())
+                              ?.user
+                              .id ??
+                          '',
                       otherUserName: consultation.patientName ?? 'Patient',
                       otherUserAvatar: consultation.patientAvatar,
                       isDoctor: true,
@@ -528,7 +552,10 @@ class _PendingRequestCard extends StatelessWidget {
                 ),
                 if (!isPending)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFE8F0FF),
                       borderRadius: BorderRadius.circular(12),
@@ -572,16 +599,25 @@ class _PendingRequestCard extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: () {
                           context.read<DoctorDashboardBloc>().add(
-                                RespondToRequest(consultation.id, 'cancelled'),
-                              );
+                            RespondToRequest(consultation.id, 'cancelled'),
+                          );
                         },
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFEF4444), width: 1),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          side: const BorderSide(
+                            color: Color(0xFFEF4444),
+                            width: 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                         ),
                         child: const Text(
                           'Decline',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFEF4444)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFEF4444),
+                          ),
                         ),
                       ),
                     ),
@@ -593,18 +629,23 @@ class _PendingRequestCard extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: () {
                           context.read<DoctorDashboardBloc>().add(
-                                RespondToRequest(consultation.id, 'active'),
-                              );
+                            RespondToRequest(consultation.id, 'active'),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                         ),
                         child: const Text(
                           'Accept',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -694,8 +735,12 @@ class _WorkplaceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String name = workplaces.isNotEmpty ? workplaces[0].name : 'Hamro Clinic';
-    final String address = workplaces.isNotEmpty ? workplaces[0].address : 'Kathmandu, Nepal';
+    final String name = workplaces.isNotEmpty
+        ? workplaces[0].name
+        : 'Hamro Clinic';
+    final String address = workplaces.isNotEmpty
+        ? workplaces[0].address
+        : 'Kathmandu, Nepal';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -780,7 +825,10 @@ class _PremiumDoctorBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onTap;
 
-  const _PremiumDoctorBottomNav({required this.selectedIndex, required this.onTap});
+  const _PremiumDoctorBottomNav({
+    required this.selectedIndex,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -794,7 +842,7 @@ class _PremiumDoctorBottomNav extends StatelessWidget {
             color: Color(0x0A0F172A),
             blurRadius: 20,
             offset: Offset(0, -5),
-          )
+          ),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -802,7 +850,11 @@ class _PremiumDoctorBottomNav extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(0, Icons.home_filled, 'Home'),
-          _buildNavItem(1, Icons.assignment_turned_in_outlined, 'Consultations'),
+          _buildNavItem(
+            1,
+            Icons.assignment_turned_in_outlined,
+            'Consultations',
+          ),
           _buildNavItem(2, Icons.library_books_outlined, 'Articles'),
           _buildNavItem(3, Icons.person_outline_rounded, 'Profile'),
         ],
@@ -875,7 +927,13 @@ class _DoctorPlaceholderPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -904,7 +962,9 @@ class _DoctorPlaceholderPage extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'We are building this premium module to bring world-class healthcare tools directly to your screen.',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -954,7 +1014,9 @@ class _ActiveConsultationsTab extends StatelessWidget {
       final now = DateTime.now();
       final diff = now.difference(date);
       if (diff.inDays == 0) {
-        final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+        final hour = date.hour > 12
+            ? date.hour - 12
+            : (date.hour == 0 ? 12 : date.hour);
         final minute = date.minute.toString().padLeft(2, '0');
         final period = date.hour >= 12 ? 'PM' : 'AM';
         return '$hour:$minute $period';
@@ -962,13 +1024,20 @@ class _ActiveConsultationsTab extends StatelessWidget {
         return 'Yesterday';
       } else if (diff.inDays < 7) {
         switch (date.weekday) {
-          case 1: return 'Mon';
-          case 2: return 'Tue';
-          case 3: return 'Wed';
-          case 4: return 'Thu';
-          case 5: return 'Fri';
-          case 6: return 'Sat';
-          default: return 'Sun';
+          case 1:
+            return 'Mon';
+          case 2:
+            return 'Tue';
+          case 3:
+            return 'Wed';
+          case 4:
+            return 'Thu';
+          case 5:
+            return 'Fri';
+          case 6:
+            return 'Sat';
+          default:
+            return 'Sun';
         }
       } else {
         return '${date.month}/${date.day}';
@@ -980,91 +1049,107 @@ class _ActiveConsultationsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeConsults = state.consultations.where((c) => c.status == 'active').toList();
+    final activeConsults = state.consultations
+        .where((c) => c.status == 'active')
+        .toList();
 
     final List<Widget> activeWidgets = [];
     if (activeConsults.isEmpty) {
-      activeWidgets.add(_LiveConsultationCard(
-        name: 'Samyog',
-        recentMessage: "I'm feeling much better, but I did notice a slight palpitation...",
-        timeText: '10:30 AM',
-        typeIcon: Icons.chat_bubble_outline_rounded,
-        badgeColor: const Color(0xFF004AC6),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ConsultationRoomPage(
-                consultationId: 'samyog_text_session',
-                currentUserId: user.id,
-                otherUserName: 'Samyog',
-                isDoctor: true,
-              ),
-            ),
-          );
-        },
-      ));
-      activeWidgets.add(const SizedBox(height: 12));
-      activeWidgets.add(_LiveConsultationCard(
-        name: 'Aditi',
-        recentMessage: 'Active Video Call Session',
-        timeText: 'Yesterday',
-        typeIcon: Icons.videocam_outlined,
-        badgeColor: const Color(0xFF10B981),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ConsultationRoomPage(
-                consultationId: 'aditi_video_session',
-                currentUserId: user.id,
-                otherUserName: 'Aditi',
-                isDoctor: true,
-              ),
-            ),
-          );
-        },
-      ));
-    } else {
-      for (final consult in activeConsults) {
-        final lastMsg = consult.messages.isNotEmpty
-            ? consult.messages.last['text'] as String
-            : 'Consultation started. Tap to chat.';
-        
-        final timeText = consult.messages.isNotEmpty
-            ? _formatMessageTime(consult.messages.last['timestamp'] as String?)
-            : _formatMessageTime(consult.createdAt);
-            
-        final isVideo = consult.id.contains('video');
-        final typeIcon = isVideo ? Icons.videocam_outlined : Icons.chat_bubble_outline_rounded;
-        final badgeColor = isVideo ? const Color(0xFF10B981) : const Color(0xFF004AC6);
-
-         activeWidgets.add(_LiveConsultationCard(
-          name: consult.patientName ?? 'Patient',
-          patientAvatar: consult.patientAvatar,
-          recentMessage: lastMsg,
-          timeText: timeText,
-          typeIcon: typeIcon,
-          badgeColor: badgeColor,
+      activeWidgets.add(
+        _LiveConsultationCard(
+          name: 'Samyog',
+          recentMessage:
+              "I'm feeling much better, but I did notice a slight palpitation...",
+          timeText: '10:30 AM',
+          typeIcon: Icons.chat_bubble_outline_rounded,
+          badgeColor: const Color(0xFF004AC6),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => ConsultationRoomPage(
-                  consultationId: consult.id,
+                  consultationId: 'samyog_text_session',
                   currentUserId: user.id,
-                  otherUserName: consult.patientName ?? 'Patient',
-                  otherUserAvatar: consult.patientAvatar,
+                  otherUserName: 'Samyog',
                   isDoctor: true,
                 ),
               ),
-            ).then((_) {
-              if (context.mounted) {
-                context.read<DoctorDashboardBloc>().add(LoadDoctorDashboardData());
-              }
-            });
+            );
           },
-        ));
+        ),
+      );
+      activeWidgets.add(const SizedBox(height: 12));
+      activeWidgets.add(
+        _LiveConsultationCard(
+          name: 'Aditi',
+          recentMessage: 'Active Video Call Session',
+          timeText: 'Yesterday',
+          typeIcon: Icons.videocam_outlined,
+          badgeColor: const Color(0xFF10B981),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ConsultationRoomPage(
+                  consultationId: 'aditi_video_session',
+                  currentUserId: user.id,
+                  otherUserName: 'Aditi',
+                  isDoctor: true,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      for (final consult in activeConsults) {
+        final lastMsg = consult.messages.isNotEmpty
+            ? consult.messages.last['text'] as String
+            : 'Consultation started. Tap to chat.';
+
+        final timeText = consult.messages.isNotEmpty
+            ? _formatMessageTime(consult.messages.last['timestamp'] as String?)
+            : _formatMessageTime(consult.createdAt);
+
+        final isVideo = consult.id.contains('video');
+        final typeIcon = isVideo
+            ? Icons.videocam_outlined
+            : Icons.chat_bubble_outline_rounded;
+        final badgeColor = isVideo
+            ? const Color(0xFF10B981)
+            : const Color(0xFF004AC6);
+
+        activeWidgets.add(
+          _LiveConsultationCard(
+            name: consult.patientName ?? 'Patient',
+            patientAvatar: consult.patientAvatar,
+            recentMessage: lastMsg,
+            timeText: timeText,
+            typeIcon: typeIcon,
+            badgeColor: badgeColor,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ConsultationRoomPage(
+                    consultationId: consult.id,
+                    currentUserId: user.id,
+                    otherUserName: consult.patientName ?? 'Patient',
+                    otherUserAvatar: consult.patientAvatar,
+                    isDoctor: true,
+                    initialPrescription: consult.prescription,
+                  ),
+                ),
+              ).then((_) {
+                if (context.mounted) {
+                  context.read<DoctorDashboardBloc>().add(
+                    LoadDoctorDashboardData(),
+                  );
+                }
+              });
+            },
+          ),
+        );
         activeWidgets.add(const SizedBox(height: 12));
       }
       if (activeWidgets.isNotEmpty) {
@@ -1199,7 +1284,9 @@ class _LiveConsultationCard extends StatelessWidget {
               CircleAvatar(
                 radius: 26,
                 backgroundColor: badgeColor.withOpacity(0.08),
-                backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes) : null,
+                backgroundImage: avatarBytes != null
+                    ? MemoryImage(avatarBytes)
+                    : null,
                 child: avatarBytes == null
                     ? Text(
                         name.isNotEmpty ? name[0].toUpperCase() : 'P',
@@ -1222,11 +1309,7 @@ class _LiveConsultationCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 2),
                   ),
-                  child: Icon(
-                    typeIcon,
-                    color: Colors.white,
-                    size: 11,
-                  ),
+                  child: Icon(typeIcon, color: Colors.white, size: 11),
                 ),
               ),
             ],

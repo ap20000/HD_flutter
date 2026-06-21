@@ -21,7 +21,5 @@ abstract class AuthRepository {
     required String code,
   });
 
-  Future<Either<Failure, User>> updateAvatar({
-    required String base64Image,
-  });
+  Future<Either<Failure, User>> updateAvatar({required String base64Image});
 }

@@ -1,8 +1,8 @@
 class ApiConstants {
-  // static const String baseUrl =
-  //     'https://mediumseagreen-locust-705726.hostingersite.com';
+  static const String baseUrl =
+      'https://mediumseagreen-locust-705726.hostingersite.com';
 
-  static const String baseUrl = 'http://192.168.110.27:5001';
+  // static const String baseUrl = 'http://192.168.110.27:5001';
   static const String apiVersion = 'v1';
 
   // Auth Endpoints

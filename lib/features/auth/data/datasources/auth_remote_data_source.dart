@@ -82,6 +82,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         ApiConstants.register,
         data: {
           'name': name,
+          'username': name.isNotEmpty ? name : phone,
           'email': email,
           'phone': phone,
           'password': password,
