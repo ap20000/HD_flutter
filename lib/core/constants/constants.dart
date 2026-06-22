@@ -18,6 +18,11 @@ class ApiConstants {
   static const String getRecords = '/api/$apiVersion/users/bmi';
   static const String getConsultations = '/api/$apiVersion/consultations';
 
+  // Chatbot Endpoints
+  static const String chatbotHistory = '/api/$apiVersion/chatbot/history';
+  static const String chatbotChat = '/api/$apiVersion/chatbot/chat';
+  static const String chatbotSave = '/api/$apiVersion/chatbot/save';
+
   // Doctor Dashboard Endpoints
   static const String getDoctorStats = '/api/$apiVersion/doctor/dashboard';
   static const String updateDoctorStatus = '/api/$apiVersion/doctor/status';

@@ -32,11 +32,17 @@ class PremiumBottomNav extends StatelessWidget {
           ),
           _buildNavItem(
             2,
+            Icons.smart_toy,
+            Icons.smart_toy_outlined,
+            'Third Pole AI',
+          ),
+          _buildNavItem(
+            3,
             Icons.description,
             Icons.description_outlined,
             'Records',
           ),
-          _buildNavItem(3, Icons.person, Icons.person_outline, 'Profile'),
+          _buildNavItem(4, Icons.person, Icons.person_outline, 'Profile'),
         ],
       ),
     );

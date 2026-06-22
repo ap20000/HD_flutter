@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hamro_doctor_mobile/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/bloc/patient_dashboard_bloc.dart';
 import 'injection_container.dart' as di;
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';

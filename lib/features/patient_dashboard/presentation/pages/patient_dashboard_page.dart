@@ -13,6 +13,7 @@ import '../bloc/patient_dashboard_state.dart';
 import '../widgets/premium_bottom_nav.dart';
 import '../../../consultation_room/presentation/pages/consultation_room_page.dart';
 import 'book_appointment_page.dart';
+import 'third_pole_ai_page.dart';
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -86,8 +87,8 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
               return _DashboardBody(
                 user: widget.user,
                 state: state,
-                onProfileTap: () => setState(() => _selectedIndex = 3),
-                onArticlesTab: () => setState(() => _selectedIndex = 2),
+                onProfileTap: () => setState(() => _selectedIndex = 4),
+                onArticlesTab: () => setState(() => _selectedIndex = 3),
                 onConsultationsTab: () => setState(() => _selectedIndex = 1),
               );
             }
@@ -107,6 +108,8 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
           },
         );
       case 2:
+        return ThirdPoleAIChatPage(user: widget.user);
+      case 3:
         return _EmptyFeaturePage(
           title: 'Health Articles',
           icon: Icons.article_outlined,
@@ -114,7 +117,7 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
               'Read expert-written articles about health, wellness, and medical topics.',
           isDark: Theme.of(context).brightness == Brightness.dark,
         );
-      case 3:
+      case 4:
         return ProfilePage(user: widget.user);
       default:
         return const SizedBox();
