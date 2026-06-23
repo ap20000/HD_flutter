@@ -203,7 +203,9 @@ class ConsultationRoomBloc
       if (_consultationId != null) {
         socketService.sendSignal(_consultationId!, {
           'type': 'candidate',
-          'candidate': candidate.toMap(),
+          'signal': {
+            'candidate': candidate.toMap(),
+          },
         });
       }
     };
@@ -216,7 +218,11 @@ class ConsultationRoomBloc
       if (_consultationId != null) {
         socketService.sendSignal(_consultationId!, {
           'type': 'offer',
-          'sdp': offer.sdp,
+          'callType': event.isVideo ? 'video' : 'audio',
+          'signal': {
+            'type': 'offer',
+            'sdp': offer.sdp,
+          },
         });
       }
     } catch (e) {
@@ -235,20 +241,28 @@ class ConsultationRoomBloc
     } else if (type == 'remote_stream') {
       emit(state.copyWith(remoteStream: event.signal['stream']));
     } else if (type == 'offer') {
-      emit(state.copyWith(hasIncomingCall: true, pendingOffer: event.signal));
+      final bool isVideo = event.signal['callType'] == 'video' || event.signal['isVideo'] == true;
+      emit(state.copyWith(
+        hasIncomingCall: true,
+        pendingOffer: event.signal,
+        isVideoCall: isVideo,
+      ));
     } else if (type == 'answer') {
+      final sdp = event.signal['signal'] != null ? event.signal['signal']['sdp'] : event.signal['sdp'];
       await webrtcHelper.setRemoteDescription(
-        RTCSessionDescription(event.signal['sdp'], 'answer'),
+        RTCSessionDescription(sdp, 'answer'),
       );
     } else if (type == 'candidate') {
-      final cand = event.signal['candidate'];
-      await webrtcHelper.addIceCandidate(
-        RTCIceCandidate(
-          cand['candidate'],
-          cand['sdpMid'],
-          cand['sdpMLineIndex'],
-        ),
-      );
+      final cand = event.signal['signal'] != null ? event.signal['signal']['candidate'] : event.signal['candidate'];
+      if (cand != null) {
+        await webrtcHelper.addIceCandidate(
+          RTCIceCandidate(
+            cand['candidate'],
+            cand['sdpMid'],
+            cand['sdpMLineIndex'],
+          ),
+        );
+      }
     }
   }
 
@@ -291,13 +305,17 @@ class ConsultationRoomBloc
       try {
         await webrtcHelper.initLocalStream(state.isVideoCall);
         await webrtcHelper.initializePeerConnection();
+        final sdp = offer['signal'] != null ? offer['signal']['sdp'] : offer['sdp'];
         final answer = await webrtcHelper.createAnswer(
-          RTCSessionDescription(offer['sdp'], 'offer'),
+          RTCSessionDescription(sdp, 'offer'),
         );
         if (_consultationId != null) {
           socketService.sendSignal(_consultationId!, {
             'type': 'answer',
-            'sdp': answer.sdp,
+            'signal': {
+              'type': 'answer',
+              'sdp': answer.sdp,
+            },
           });
         }
         emit(
