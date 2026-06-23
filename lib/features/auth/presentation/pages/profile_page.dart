@@ -175,79 +175,84 @@ class ProfilePage extends StatelessWidget {
                     padding: const EdgeInsets.all(24),
                     child: Row(
                       children: [
-                        Stack(
-                          children: [
-                            GestureDetector(
-                              onTap: isLoading ? null : () => _pickAndUploadImage(context),
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 38,
-                                    backgroundColor: AppColors.primarySoft,
-                                    backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes) : null,
-                                    child: avatarBytes == null
-                                        ? Icon(
-                                            isDoctor ? Icons.medical_services_outlined : Icons.person_outline_rounded,
-                                            color: AppColors.primary,
-                                            size: 40,
-                                          )
-                                        : null,
-                                  ),
-                                  if (isLoading)
-                                    Container(
-                                      width: 76,
-                                      height: 76,
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.5),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 3,
-                                      ),
-                                    ),
-                                  if (!isLoading)
-                                    Positioned(
-                                      right: 0,
-                                      bottom: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: const BoxDecoration(
+                        GestureDetector(
+                          onTap: isLoading ? null : () => _pickAndUploadImage(context),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: 38,
+                                backgroundColor: AppColors.primarySoft,
+                                backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes) : null,
+                                child: avatarBytes == null
+                                    ? Text(
+                                        currentUser.name.trim().isNotEmpty
+                                            ? currentUser.name.trim()[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.bold,
                                           color: AppColors.primary,
-                                          shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(
-                                          Icons.camera_alt_rounded,
-                                          color: Colors.white,
-                                          size: 14,
-                                        ),
-                                      ),
+                                      )
+                                    : null,
+                              ),
+                              if (isLoading)
+                                Container(
+                                  width: 76,
+                                  height: 76,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.5),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                ),
+                              if (!isLoading)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
                                     ),
-                                ],
-                              ),
-                            ),
-                            if (isDoctor)
-                              const Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: VerifiedBadge(size: 20),
-                              ),
-                          ],
+                                    child: const Icon(
+                                      Icons.camera_alt_rounded,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 20),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                isDoctor ? 'Dr. ${currentUser.name}' : currentUser.name,
-                                style: AppTypography.h1.copyWith(
-                                  fontSize: 22,
-                                  letterSpacing: -0.5,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      isDoctor ? 'Dr. ${currentUser.name}' : currentUser.name,
+                                      style: AppTypography.h1.copyWith(
+                                        fontSize: 22,
+                                        letterSpacing: -0.5,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (isDoctor) ...[
+                                    const SizedBox(width: 6),
+                                    const VerifiedBadge(size: 20),
+                                  ],
+                                ],
                               ),
                               const SizedBox(height: 6),
                               StatusBadge(
@@ -431,7 +436,7 @@ class ProfilePage extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String value;
+  final String? value;
 
   const _InfoRow({
     required this.icon,
@@ -441,6 +446,8 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isEmpty = value == null || value!.trim().isEmpty;
+    final String displayValue = isEmpty ? 'Not Provided' : value!;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16.0),
       child: Row(
@@ -453,10 +460,11 @@ class _InfoRow extends StatelessWidget {
           ),
           const Spacer(),
           Text(
-            value,
+            displayValue,
             style: AppTypography.titleMedium.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
+              color: isEmpty ? AppColors.textTertiary : AppColors.textPrimary,
+              fontWeight: isEmpty ? FontWeight.normal : FontWeight.bold,
+              fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
             ),
           ),
         ],

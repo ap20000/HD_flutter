@@ -553,7 +553,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 160,
+                  height: 195,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: widget.state.doctors.length,
@@ -564,23 +564,11 @@ class _DashboardBodyState extends State<_DashboardBody> {
                         isDark: isDark,
                         name: doctor.name,
                         specialty: doctor.specialty,
-                        onTap: () async {
-                          final confirmed = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BookAppointmentPage(
-                                doctor: doctor,
-                                isDark: isDark,
-                              ),
-                            ),
+                        onTap: () {
+                          context.read<PatientDashboardBloc>().add(
+                            RequestConsultation(doctor.id),
                           );
-
-                          if (confirmed == true && context.mounted) {
-                                    context.read<PatientDashboardBloc>().add(
-                                      RequestConsultation(doctor.id),
-                                    );
-                                    widget.onConsultationsTab();
-                                  }
+                          widget.onConsultationsTab();
                         },
                       );
                     },
@@ -1183,7 +1171,7 @@ class _SpecialistCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 150,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         decoration: BoxDecoration(
           color: isDark ? AppColors.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1207,19 +1195,19 @@ class _SpecialistCard extends StatelessWidget {
                 border: Border.all(color: AppColors.primary, width: 2),
               ),
               child: CircleAvatar(
-                radius: 32,
+                radius: 26,
                 backgroundColor: AppColors.primarySoft,
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : 'D',
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontWeight: FontWeight.bold,
-                    fontSize: 24,
+                    fontSize: 20,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               name,
               maxLines: 1,
@@ -1227,21 +1215,40 @@ class _SpecialistCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: 13,
                 color: isDark ? AppColors.white : AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               specialty,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: isDark
                     ? AppColors.textOnDarkSecondary
                     : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: Text(
+                  'Consult Now',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
               ),
             ),
           ],
@@ -1796,7 +1803,7 @@ class _EmptyFeaturePage extends StatelessWidget {
   }
 }
 
-class _ConsultationsPage extends StatelessWidget {
+class _ConsultationsPage extends StatefulWidget {
   final bool isDark;
   final List<Consultation> consultations;
   final String currentUserId;
@@ -1808,7 +1815,27 @@ class _ConsultationsPage extends StatelessWidget {
   });
 
   @override
+  State<_ConsultationsPage> createState() => _ConsultationsPageState();
+}
+
+class _ConsultationsPageState extends State<_ConsultationsPage> {
+  String _searchQuery = '';
+  String _filterType = 'all'; // 'all', 'active', 'pending'
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    
+    // Filter list based on search query and filter selection
+    final filtered = widget.consultations.where((c) {
+      final matchesSearch = c.doctorName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                            c.doctorSpecialty.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesFilter = _filterType == 'all' ||
+                            (_filterType == 'active' && c.status == 'active') ||
+                            (_filterType == 'pending' && c.status == 'pending');
+      return matchesSearch && matchesFilter;
+    }).toList();
+
     return Scaffold(
       backgroundColor: isDark
           ? AppColors.darkBackground
@@ -1827,34 +1854,145 @@ class _ConsultationsPage extends StatelessWidget {
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
-      body: consultations.isEmpty
-          ? _buildEmptyState()
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: consultations.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final consultation = consultations[index];
-                return _FullConsultationCard(
-                  isDark: isDark,
-                  consultation: consultation,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ConsultationRoomPage(
-                          consultationId: consultation.id,
-                          currentUserId: currentUserId,
-                          otherUserName: consultation.doctorName,
-                          isDoctor: false,
-                          initialPrescription: consultation.prescription,
-                        ),
-                      ),
-                    );
-                  },
-                );
+      body: Column(
+        children: [
+          // Search Field
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: TextField(
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
               },
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search consultations...',
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 20,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                ),
+                filled: true,
+                fillColor: isDark ? AppColors.darkSurface : Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.15)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
             ),
+          ),
+
+          // Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                _buildFilterChip('all', 'All'),
+                const SizedBox(width: 8),
+                _buildFilterChip('active', 'Ongoing'),
+                const SizedBox(width: 8),
+                _buildFilterChip('pending', 'Pending'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // List or Empty State
+          Expanded(
+            child: filtered.isEmpty
+                ? _buildEmptyState()
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final consultation = filtered[index];
+                      return _FullConsultationCard(
+                        isDark: isDark,
+                        consultation: consultation,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ConsultationRoomPage(
+                                consultationId: consultation.id,
+                                currentUserId: widget.currentUserId,
+                                otherUserName: consultation.doctorName,
+                                isDoctor: false,
+                                initialPrescription: consultation.prescription,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String type, String label) {
+    final isSelected = _filterType == type;
+    final isDark = widget.isDark;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _filterType = type;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary
+              : (isDark ? AppColors.darkSurface : Colors.white),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : Colors.grey.withOpacity(isDark ? 0.08 : 0.2),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.white70 : Colors.black87),
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1866,15 +2004,15 @@ class _ConsultationsPage extends StatelessWidget {
           Icon(
             Icons.assignment_outlined,
             size: 64,
-            color: Colors.grey.shade300,
+            color: widget.isDark ? Colors.white24 : Colors.grey.shade300,
           ),
           const SizedBox(height: 16),
           Text(
-            'No consultations yet',
+            'No consultations found',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white54 : Colors.black54,
+              color: widget.isDark ? Colors.white54 : Colors.black54,
             ),
           ),
         ],
