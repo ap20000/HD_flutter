@@ -72,6 +72,7 @@ class PatientDashboardBloc
     RequestConsultation event,
     Emitter<PatientDashboardState> emit,
   ) async {
+    emit(PatientDashboardLoading());
     final result = await requestConsultationUseCase(event.doctorId);
     result.fold(
       (f) => emit(PatientDashboardError(f.message)),

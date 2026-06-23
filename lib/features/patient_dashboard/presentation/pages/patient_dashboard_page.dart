@@ -102,6 +102,31 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
       case 1:
         return BlocBuilder<PatientDashboardBloc, PatientDashboardState>(
           builder: (context, state) {
+            if (state is PatientDashboardLoading) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return Scaffold(
+                backgroundColor: isDark
+                    ? AppColors.darkBackground
+                    : const Color(0xFFF8FAFC),
+                appBar: AppBar(
+                  title: Text(
+                    'Consultations',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.white : AppColors.textPrimary,
+                    ),
+                  ),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  centerTitle: true,
+                  automaticallyImplyLeading: false,
+                ),
+                body: const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              );
+            }
             return _ConsultationsPage(
               isDark: Theme.of(context).brightness == Brightness.dark,
               consultations: state is PatientDashboardLoaded
@@ -270,6 +295,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       ),
     );
+    widget.onConsultationsTab();
   }
 
   void _onAppointmentTap(BuildContext context) {
@@ -487,6 +513,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                             margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                                           ),
                                         );
+                                        widget.onConsultationsTab();
                                       },
                                     ),
                                   ),
@@ -549,10 +576,11 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           );
 
                           if (confirmed == true && context.mounted) {
-                            context.read<PatientDashboardBloc>().add(
-                              RequestConsultation(doctor.id),
-                            );
-                          }
+                                    context.read<PatientDashboardBloc>().add(
+                                      RequestConsultation(doctor.id),
+                                    );
+                                    widget.onConsultationsTab();
+                                  }
                         },
                       );
                     },

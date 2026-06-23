@@ -26,9 +26,9 @@ class PremiumBottomNav extends StatelessWidget {
           _buildNavItem(0, Icons.home_filled, Icons.home_outlined, 'Home'),
           _buildNavItem(
             1,
-            Icons.calendar_month,
-            Icons.calendar_month_outlined,
-            'Bookings',
+            Icons.medical_services,
+            Icons.medical_services_outlined,
+            'Doctor Consult',
           ),
           _buildNavItem(
             2,
