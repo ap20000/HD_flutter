@@ -515,6 +515,9 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
   }
 
   Widget _buildCallOverlay(BuildContext context, ConsultationRoomState state) {
+    if (!state.isVideoCall) {
+      return _buildAudioCallOverlay(context, state);
+    }
     return Container(
       color: Colors.black,
       child: Stack(
@@ -600,6 +603,101 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
     );
   }
 
+  Widget _buildAudioCallOverlay(BuildContext context, ConsultationRoomState state) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF0F172A),
+            Color(0xFF1E293B),
+          ],
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Spacer(),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: 160,
+                width: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF004AC6).withOpacity(0.15),
+                ),
+              ),
+              Container(
+                height: 130,
+                width: 130,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF004AC6).withOpacity(0.3),
+                ),
+              ),
+              CircleAvatar(
+                radius: 54,
+                backgroundColor: const Color(0xFFE8F0FF),
+                backgroundImage: _getAvatarBytes(widget.otherUserAvatar) != null
+                    ? MemoryImage(_getAvatarBytes(widget.otherUserAvatar)!)
+                    : null,
+                child: _getAvatarBytes(widget.otherUserAvatar) == null
+                    ? const Icon(Icons.person, size: 54, color: Color(0xFF004AC6))
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Text(
+            widget.otherUserName,
+            style: const TextStyle(
+              fontFamily: AppTypography.fontFamily,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            state.remoteStream != null ? 'Connected' : 'Calling...',
+            style: const TextStyle(
+              fontFamily: AppTypography.fontFamily,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
+          ),
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _CallControlButton(
+                icon: state.isMuted ? Icons.mic_off : Icons.mic,
+                onPressed: () =>
+                    context.read<ConsultationRoomBloc>().add(ToggleMute()),
+                color: state.isMuted ? const Color(0xFFEF4444) : Colors.white24,
+              ),
+              const SizedBox(width: 32),
+              _CallControlButton(
+                icon: Icons.call_end,
+                onPressed: () =>
+                    context.read<ConsultationRoomBloc>().add(EndConsultationCall()),
+                color: const Color(0xFFEF4444),
+                isLarge: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 64),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCallControls(BuildContext context, ConsultationRoomState state) {
     return Positioned(
       bottom: 40,
@@ -644,15 +742,20 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 54,
-              backgroundColor: Color(0xFFE8F0FF),
-              child: Icon(Icons.person, size: 54, color: Color(0xFF004AC6)),
+              backgroundColor: const Color(0xFFE8F0FF),
+              backgroundImage: _getAvatarBytes(widget.otherUserAvatar) != null
+                  ? MemoryImage(_getAvatarBytes(widget.otherUserAvatar)!)
+                  : null,
+              child: _getAvatarBytes(widget.otherUserAvatar) == null
+                  ? const Icon(Icons.person, size: 54, color: Color(0xFF004AC6))
+                  : null,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Incoming Video Call',
-              style: TextStyle(
+            Text(
+              state.isVideoCall ? 'Incoming Video Call' : 'Incoming Audio Call',
+              style: const TextStyle(
                 fontFamily: AppTypography.fontFamily,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -698,8 +801,8 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
                       color: Color(0xFF10B981),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.videocam,
+                    child: Icon(
+                      state.isVideoCall ? Icons.videocam : Icons.phone,
                       color: Colors.white,
                       size: 28,
                     ),
