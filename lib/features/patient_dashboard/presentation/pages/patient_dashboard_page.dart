@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:dio/dio.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../features/auth/domain/entities/user.dart';
 import '../../../../features/auth/presentation/pages/profile_page.dart';
 import '../../../../injection_container.dart';
+import '../../../../core/constants/constants.dart';
 import '../../domain/entities/dashboard_data.dart';
+import '../../domain/entities/story.dart';
 import '../bloc/patient_dashboard_bloc.dart';
 import '../bloc/patient_dashboard_event.dart';
 import '../bloc/patient_dashboard_state.dart';
@@ -14,6 +17,7 @@ import '../widgets/premium_bottom_nav.dart';
 import '../../../consultation_room/presentation/pages/consultation_room_page.dart';
 import 'book_appointment_page.dart';
 import 'third_pole_ai_page.dart';
+import 'story_viewer_page.dart';
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -127,7 +131,7 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
 
 // ── Dashboard body ────────────────────────────────────────────────────────────
 
-class _DashboardBody extends StatelessWidget {
+class _DashboardBody extends StatefulWidget {
   final User user;
   final PatientDashboardLoaded state;
   final VoidCallback onProfileTap;
@@ -142,6 +146,14 @@ class _DashboardBody extends StatelessWidget {
     required this.onConsultationsTab,
   });
 
+  @override
+  State<_DashboardBody> createState() => _DashboardBodyState();
+}
+
+class _DashboardBodyState extends State<_DashboardBody> {
+  List<GroupedStories> _groupedStories = [];
+  bool _isLoadingStories = true;
+
   static const _healthServices = [
     'Book Doctor',
     'Lab Tests',
@@ -149,20 +161,76 @@ class _DashboardBody extends StatelessWidget {
     'Pharmacy',
   ];
 
-  static const _storyTitles = [
-    'Vaccination tips',
-    'Diabetes care',
-    'Healthy eating',
-  ];
-
-  int get _unreadNotifications => state.consultations
+  int get _unreadNotifications => widget.state.consultations
       .where((c) => c.status == 'pending' || c.status == 'active')
       .length;
 
-  List<String> get _upcomingAppointments => state.consultations
+  List<String> get _upcomingAppointments => widget.state.consultations
       .where((c) => c.status == 'active' || c.status == 'pending')
       .map((c) => '${c.doctorName} – ${c.doctorSpecialty}')
       .toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStories();
+  }
+
+  Future<void> _fetchStories() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingStories = true;
+    });
+
+    try {
+      final response = await sl<Dio>().get(ApiConstants.stories);
+      if (response.data != null && response.data['success'] == true) {
+        final List storiesJson = response.data['stories'] ?? [];
+        final stories = storiesJson.map((e) => Story.fromJson(e)).toList();
+
+        // Group stories by author
+        final Map<String, List<Story>> authorGroups = {};
+        for (var story in stories) {
+          authorGroups.putIfAbsent(story.authorId, () => []).add(story);
+        }
+
+        final List<GroupedStories> grouped = [];
+        for (var entry in authorGroups.entries) {
+          final authorStories = entry.value;
+          if (authorStories.isNotEmpty) {
+            final firstStory = authorStories.first;
+            grouped.add(GroupedStories(
+              authorId: entry.key,
+              authorName: firstStory.authorName,
+              authorAvatar: firstStory.authorAvatar,
+              authorSpecialty: firstStory.authorSpecialty,
+              stories: authorStories,
+            ));
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _groupedStories = grouped;
+            _isLoadingStories = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingStories = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching stories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStories = false;
+        });
+      }
+    }
+  }
 
   void _onSearchTap(BuildContext context) {
     HapticFeedback.lightImpact();
@@ -184,13 +252,13 @@ class _DashboardBody extends StatelessWidget {
 
   void _onConsultNow(BuildContext context) {
     HapticFeedback.lightImpact();
-    if (state.doctors.isEmpty) {
+    if (widget.state.doctors.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No doctors available right now')),
       );
       return;
     }
-    final doctor = state.doctors.first;
+    final doctor = widget.state.doctors.first;
     context.read<PatientDashboardBloc>().add(RequestConsultation(doctor.id));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -206,24 +274,17 @@ class _DashboardBody extends StatelessWidget {
 
   void _onAppointmentTap(BuildContext context) {
     HapticFeedback.lightImpact();
-    onConsultationsTab();
+    widget.onConsultationsTab();
   }
 
   void _onArticleTap(BuildContext context, Article article) {
     HapticFeedback.lightImpact();
-    onArticlesTab();
-  }
-
-  void _onStoryTap(BuildContext context, String story) {
-    HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Opening: $story')));
+    widget.onArticlesTab();
   }
 
   void _onNotificationsTap(BuildContext context) {
     HapticFeedback.lightImpact();
-    onConsultationsTab();
+    widget.onConsultationsTab();
   }
 
   @override
@@ -238,7 +299,7 @@ class _DashboardBody extends StatelessWidget {
       onRefresh: () async {
         HapticFeedback.mediumImpact();
         context.read<PatientDashboardBloc>().add(LoadDashboardData());
-        await Future.delayed(const Duration(milliseconds: 500));
+        await _fetchStories();
       },
       color: AppColors.primary,
       backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
@@ -304,7 +365,7 @@ class _DashboardBody extends StatelessWidget {
               delegate: SliverChildListDelegate([
                 _buildWelcomeHeader(
                   context,
-                  user.name,
+                  widget.user.name,
                   textPrimary,
                   textSecondary,
                 ),
@@ -313,25 +374,127 @@ class _DashboardBody extends StatelessWidget {
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 100,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: state.doctors.length + 1,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return _StoryAvatar(
-                          text: 'Your Story',
-                          onTap: () => _onStoryTap(context, 'Your Story'),
-                        );
-                      }
+                  child: _isLoadingStories
+                      ? ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: 5,
+                          separatorBuilder: (_, __) => const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            return const _StoryShimmer();
+                          },
+                        )
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _groupedStories.length + 1,
+                          separatorBuilder: (_, __) => const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return _StoryAvatar(
+                                text: 'Your Story',
+                                avatarUrl: widget.user.avatar,
+                                isYourStory: true,
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  if (widget.user.role == 'patient') {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20)),
+                                        backgroundColor: isDark
+                                            ? AppColors.darkSurface
+                                            : Colors.white,
+                                        title: Row(
+                                          children: [
+                                            const Icon(Icons.info_outline,
+                                                color: AppColors.primary),
+                                            const SizedBox(width: 10),
+                                            Text(
+                                              'Health Stories',
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : AppColors.textPrimary,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        content: Text(
+                                          'Only verified medical specialists can post health stories. Feel free to browse active stories from our doctors!',
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? Colors.white70
+                                                : AppColors.textSecondary,
+                                            fontSize: 14,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text(
+                                              'Got it',
+                                              style: TextStyle(
+                                                color: AppColors.primary,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Story creation is coming soon on mobile.'),
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            }
 
-                      final doctor = state.doctors[index - 1];
-                      return _StoryAvatar(
-                        text: 'Dr. ${doctor.name.split(" ").last}',
-                        onTap: () => _onStoryTap(context, doctor.name),
-                      );
-                    },
-                  ),
+                            final grouped = _groupedStories[index - 1];
+                            final doctorLastName =
+                                grouped.authorName.split(" ").last;
+                            return _StoryAvatar(
+                              text: 'Dr. $doctorLastName',
+                              avatarUrl: grouped.authorAvatar,
+                              hasStories: true,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StoryViewerPage(
+                                      groupedStoriesList: _groupedStories,
+                                      initialAuthorIndex: index - 1,
+                                      onConsultNow: (doctorId) {
+                                        // Start consultation request with this doctor
+                                        context.read<PatientDashboardBloc>().add(
+                                              RequestConsultation(doctorId),
+                                            );
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Starting consultation request with Dr. ${grouped.authorName}...',
+                                            ),
+                                            behavior: SnackBarBehavior.floating,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
                 ),
                 const SizedBox(height: 20),
                 _ConsultationCard(onTap: () => _onConsultNow(context)),
@@ -366,10 +529,10 @@ class _DashboardBody extends StatelessWidget {
                   height: 160,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: state.doctors.length,
+                    itemCount: widget.state.doctors.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 16),
                     itemBuilder: (context, index) {
-                      final doctor = state.doctors[index];
+                      final doctor = widget.state.doctors[index];
                       return _SpecialistCard(
                         isDark: isDark,
                         name: doctor.name,
@@ -399,19 +562,19 @@ class _DashboardBody extends StatelessWidget {
                 _SectionTitle(
                   title: 'Health Articles',
                   textColor: textPrimary,
-                  onSeeAll: onArticlesTab,
+                  onSeeAll: widget.onArticlesTab,
                 ),
                 const SizedBox(height: 12),
-                if (state.articles.isEmpty)
+                if (widget.state.articles.isEmpty)
                   _EmptyArticlesPlaceholder(isDark: isDark)
                 else
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: state.articles.length,
+                    itemCount: widget.state.articles.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, idx) {
-                      final article = state.articles[idx];
+                      final article = widget.state.articles[idx];
                       return _ArticleCard(
                         isDark: isDark,
                         article: article,
@@ -1062,41 +1225,186 @@ class _SpecialistCard extends StatelessWidget {
 
 class _StoryAvatar extends StatelessWidget {
   final String text;
+  final String? avatarUrl;
+  final bool isYourStory;
+  final bool hasStories;
   final VoidCallback onTap;
 
-  const _StoryAvatar({required this.text, required this.onTap});
+  const _StoryAvatar({
+    required this.text,
+    this.avatarUrl,
+    this.isYourStory = false,
+    this.hasStories = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Widget avatarChild;
+    if (isYourStory) {
+      final absoluteUrl = avatarUrl != null && avatarUrl!.isNotEmpty
+          ? (avatarUrl!.startsWith('http')
+              ? avatarUrl!
+              : '${ApiConstants.baseUrl}$avatarUrl')
+          : null;
+
+      avatarChild = Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: text.contains('Dr.')
-                    ? AppColors.primary
-                    : Colors.grey.withOpacity(0.3),
-                width: 2,
-              ),
-            ),
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+            backgroundImage: absoluteUrl != null ? NetworkImage(absoluteUrl) : null,
+            child: absoluteUrl == null
+                ? Icon(
+                    Icons.person,
+                    color: isDark ? Colors.white60 : Colors.black45,
+                    size: 28,
+                  )
+                : null,
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
             child: CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.grey.withOpacity(0.1),
-              child: Icon(
-                text.contains('Dr.') ? Icons.person : Icons.add,
-                color: text.contains('Dr.') ? AppColors.primary : Colors.grey,
+              radius: 9,
+              backgroundColor: AppColors.primary,
+              child: const Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 12,
               ),
             ),
           ),
+        ],
+      );
+    } else {
+      final absoluteUrl = avatarUrl != null && avatarUrl!.isNotEmpty
+          ? (avatarUrl!.startsWith('http')
+              ? avatarUrl!
+              : '${ApiConstants.baseUrl}$avatarUrl')
+          : null;
+
+      avatarChild = CircleAvatar(
+        radius: 28,
+        backgroundColor: Colors.grey.withOpacity(0.1),
+        backgroundImage: absoluteUrl != null ? NetworkImage(absoluteUrl) : null,
+        child: absoluteUrl == null
+            ? Icon(
+                Icons.person,
+                color: isDark ? Colors.white60 : Colors.black45,
+                size: 28,
+              )
+            : null,
+      );
+    }
+
+    Widget borderWrapper;
+    if (isYourStory) {
+      borderWrapper = Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.grey.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+        child: avatarChild,
+      );
+    } else if (hasStories) {
+      borderWrapper = Container(
+        padding: const EdgeInsets.all(2.5),
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: SweepGradient(
+            colors: [
+              Colors.purple,
+              Colors.pink,
+              Colors.orange,
+              Colors.yellow,
+              Colors.purple
+            ],
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(2.5),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkBackground : const Color(0xFFF8FAFC),
+            shape: BoxShape.circle,
+          ),
+          child: avatarChild,
+        ),
+      );
+    } else {
+      borderWrapper = Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.grey.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+        child: avatarChild,
+      );
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          children: [
+            borderWrapper,
+            const SizedBox(height: 8),
+            Text(
+              text,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : AppColors.textPrimary,
+                fontFamily: AppTypography.fontFamily,
+              ),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryShimmer extends StatelessWidget {
+  const _StoryShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+    return SizedBox(
+      width: 72,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
+          Container(
+            width: 48,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         ],
       ),

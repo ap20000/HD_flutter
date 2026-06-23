@@ -17,6 +17,7 @@ class ApiConstants {
   static const String getArticles = '/api/$apiVersion/articles';
   static const String getRecords = '/api/$apiVersion/users/bmi';
   static const String getConsultations = '/api/$apiVersion/consultations';
+  static const String stories = '/api/$apiVersion/stories';
 
   // Chatbot Endpoints
   static const String chatbotHistory = '/api/$apiVersion/chatbot/history';
