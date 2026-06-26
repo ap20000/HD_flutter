@@ -279,15 +279,18 @@ class _DiscussionTab extends StatefulWidget {
 
 class _DiscussionTabState extends State<_DiscussionTab> {
   List<dynamic> _questions = [];
+  List<dynamic> _articleComments = [];
+  List<ArticleCommentGroup> _groupedArticleComments = [];
   bool _isLoading = true;
   String? _error;
   final TextEditingController _replyController = TextEditingController();
   String? _replyingToId;
+  int _activeSubTab = 0; // 0 = Public Forum, 1 = Article Comments
 
   @override
   void initState() {
     super.initState();
-    _fetchQuestions();
+    _fetchData();
   }
 
   @override
@@ -296,7 +299,7 @@ class _DiscussionTabState extends State<_DiscussionTab> {
     super.dispose();
   }
 
-  Future<void> _fetchQuestions() async {
+  Future<void> _fetchData() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -304,11 +307,24 @@ class _DiscussionTabState extends State<_DiscussionTab> {
     });
 
     try {
-      final response = await sl<Dio>().get('${ApiConstants.baseUrl}/api/v1/forum/questions');
-      if (response.data != null && response.data['success'] == true) {
+      // 1. Fetch forum questions
+      final questionsResponse = await sl<Dio>().get('${ApiConstants.baseUrl}/api/v1/forum/questions');
+      
+      // 2. Fetch article comments if the logged-in user is a doctor
+      if (widget.user.role == 'doctor') {
+        final commentsResponse = await sl<Dio>().get('${ApiConstants.baseUrl}/api/v1/doctor/article-comments');
+        if (commentsResponse.data != null && commentsResponse.data['success'] == true) {
+          _articleComments = commentsResponse.data['comments'] ?? [];
+        } else {
+          _articleComments = [];
+        }
+        _groupAndNestComments();
+      }
+
+      if (questionsResponse.data != null && questionsResponse.data['success'] == true) {
         if (mounted) {
           setState(() {
-            _questions = response.data['questions'] ?? [];
+            _questions = questionsResponse.data['questions'] ?? [];
             _isLoading = false;
           });
         }
@@ -349,7 +365,7 @@ class _DiscussionTabState extends State<_DiscussionTab> {
         setState(() {
           _replyingToId = null;
         });
-        _fetchQuestions();
+        _fetchData();
       } else {
         setState(() {
           _isLoading = false;
@@ -500,7 +516,7 @@ class _DiscussionTabState extends State<_DiscussionTab> {
                               'isAnonymous': isAnonymous,
                             },
                           );
-                          _fetchQuestions();
+                          _fetchData();
                         } catch (e) {
                           setState(() {
                             _isLoading = false;
@@ -531,6 +547,412 @@ class _DiscussionTabState extends State<_DiscussionTab> {
     );
   }
 
+
+  void _groupAndNestComments() {
+    if (_articleComments.isEmpty) {
+      setState(() {
+        _groupedArticleComments = [];
+      });
+      return;
+    }
+
+    // 1. Group raw comments by article ID
+    final Map<String, List<Map<String, dynamic>>> commentsByArticle = {};
+    final Map<String, Map<String, dynamic>> articlesById = {};
+
+    for (var commentRaw in _articleComments) {
+      if (commentRaw == null) continue;
+      final comment = Map<String, dynamic>.from(commentRaw);
+      final article = comment['article'];
+      if (article == null) continue;
+      
+      final articleId = article['_id'] ?? article['id'] ?? 'unknown';
+      articlesById[articleId] = Map<String, dynamic>.from(article);
+      
+      if (!commentsByArticle.containsKey(articleId)) {
+        commentsByArticle[articleId] = [];
+      }
+      commentsByArticle[articleId]!.add(comment);
+    }
+
+    final List<ArticleCommentGroup> groups = [];
+
+    // Helper to parse date
+    DateTime parseDate(dynamic date) {
+      if (date == null) return DateTime.fromMillisecondsSinceEpoch(0);
+      try {
+        return DateTime.parse(date.toString());
+      } catch (_) {
+        return DateTime.fromMillisecondsSinceEpoch(0);
+      }
+    }
+
+    // 2. Process each article group
+    commentsByArticle.forEach((articleId, commentsList) {
+      final article = articlesById[articleId]!;
+
+      // Sort all comments in this group chronologically (oldest first)
+      commentsList.sort((a, b) => parseDate(a['createdAt']).compareTo(parseDate(b['createdAt'])));
+
+      // Map to quickly find nodes
+      final Map<String, CommentNode> nodeMap = {};
+      for (var comment in commentsList) {
+        final cid = comment['_id'] ?? comment['id'] ?? '';
+        if (cid.isNotEmpty) {
+          nodeMap[cid] = CommentNode(comment: comment, children: []);
+        }
+      }
+
+      // Build tree
+      final List<CommentNode> roots = [];
+      for (var comment in commentsList) {
+        final cid = comment['_id'] ?? comment['id'] ?? '';
+        if (cid.isEmpty) continue;
+        final node = nodeMap[cid]!;
+
+        // Determine parent ID
+        String? parentId;
+        final parentVal = comment['parentComment'];
+        if (parentVal is String) {
+          parentId = parentVal;
+        } else if (parentVal is Map) {
+          parentId = parentVal['_id'] ?? parentVal['id'];
+        }
+
+        if (parentId == null || !nodeMap.containsKey(parentId)) {
+          // It is a root comment
+          roots.add(node);
+        } else {
+          // It is a reply, add to parent's children
+          nodeMap[parentId]!.children.add(node);
+        }
+      }
+
+      // Flatten tree
+      final List<FlattenedComment> flattenedList = [];
+      void flattenTree(CommentNode node, int depth) {
+        flattenedList.add(FlattenedComment(comment: node.comment, depth: depth));
+        for (var child in node.children) {
+          flattenTree(child, depth + 1);
+        }
+      }
+
+      for (var root in roots) {
+        flattenTree(root, 0);
+      }
+
+      groups.add(ArticleCommentGroup(article: article, comments: flattenedList));
+    });
+
+    setState(() {
+      _groupedArticleComments = groups;
+    });
+  }
+
+  Widget _buildArticleCommentGroup(ArticleCommentGroup group, bool isDark) {
+    final articleTitle = group.article['title'] ?? 'Article';
+    final category = group.article['category'];
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border.all(
+          color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Article Header Card
+          InkWell(
+            onTap: () {
+              final articleData = Map<String, dynamic>.from(group.article)
+                ..['author'] = {'name': widget.user.name};
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ArticleDetailPage(article: articleData),
+                ),
+              );
+            },
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(isDark ? 0.08 : 0.04),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.article_rounded, color: AppColors.primary, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (category != null)
+                          Text(
+                            category.toString().toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        const SizedBox(height: 2),
+                        Text(
+                          articleTitle,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : AppColors.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primary),
+                ],
+              ),
+            ),
+          ),
+          
+          // Comments inside this article
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: group.comments.map((flatComment) {
+                return _buildRedditCommentCard(flatComment, isDark);
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRedditCommentCard(FlattenedComment flatComment, bool isDark) {
+    final comment = flatComment.comment;
+    final author = comment['author'];
+    final authorName = author?['name'] ?? 'Anonymous Patient';
+    final authorRole = author?['role'] ?? 'patient';
+    final dateStr = comment['createdAt'] != null
+        ? DateTime.parse(comment['createdAt']).toLocal().toString().split(' ')[0]
+        : '';
+    final depth = flatComment.depth.clamp(0, 4);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Ancestor thread lines
+            for (int i = 0; i < depth; i++)
+              Container(
+                width: 1.5,
+                margin: EdgeInsets.only(
+                  left: i == 0 ? 0.0 : 8.0,
+                  right: i == depth - 1 ? 12.0 : 0.0,
+                  top: 4,
+                  bottom: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            // Comment Content Card
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark 
+                      ? (depth == 0 ? AppColors.darkSurface.withOpacity(0.5) : AppColors.darkSurface.withOpacity(0.2)) 
+                      : (depth == 0 ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? AppColors.dividerDark : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFE8F0FF),
+                          child: Text(
+                            authorName.isNotEmpty ? authorName[0].toUpperCase() : 'P',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  authorName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: authorRole == 'doctor'
+                                      ? AppColors.success.withOpacity(0.1)
+                                      : AppColors.primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  authorRole.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 7,
+                                    fontWeight: FontWeight.bold,
+                                    color: authorRole == 'doctor' ? AppColors.success : AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          dateStr,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white60 : AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      comment['text'] ?? '',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubTabs(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activeSubTab = 0;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeSubTab == 0 ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: _activeSubTab == 0
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.2),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          )
+                        ]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Public Forum',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: _activeSubTab == 0 ? Colors.white : (isDark ? Colors.white60 : AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activeSubTab = 1;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeSubTab == 1 ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: _activeSubTab == 1
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.2),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          )
+                        ]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Article Comments',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: _activeSubTab == 1 ? Colors.white : (isDark ? Colors.white60 : AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -547,7 +969,7 @@ class _DiscussionTabState extends State<_DiscussionTab> {
             Text(_error!, style: TextStyle(color: isDark ? Colors.white70 : AppColors.textSecondary)),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _fetchQuestions,
+              onPressed: _fetchData,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
               child: const Text('Retry', style: TextStyle(color: Colors.white)),
             ),
@@ -556,239 +978,260 @@ class _DiscussionTabState extends State<_DiscussionTab> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        onRefresh: _fetchQuestions,
-        color: AppColors.primary,
-        child: _questions.isEmpty
-            ? Center(
-                child: Text(
-                  'No discussions yet.',
-                  style: TextStyle(color: isDark ? Colors.white60 : AppColors.textTertiary),
-                ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _questions.length,
-                itemBuilder: (context, index) {
-                  final post = _questions[index];
-                  final isAnonymous = post['isAnonymous'] ?? false;
-                  final authorName = isAnonymous
-                      ? 'Anonymous Patient'
-                      : (post['user']?['name'] ?? 'User');
-                  final dateStr = post['createdAt'] != null
-                      ? DateTime.parse(post['createdAt']).toLocal().toString().split(' ')[0]
-                      : '';
-                  final answers = post['answers'] as List? ?? [];
+    Widget tabContent;
+    if (widget.user.role == 'doctor' && _activeSubTab == 1) {
+      tabContent = _groupedArticleComments.isEmpty
+          ? Center(
+              child: Text(
+                'No article comments yet.',
+                style: TextStyle(color: isDark ? Colors.white60 : AppColors.textTertiary),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _groupedArticleComments.length,
+              itemBuilder: (context, index) {
+                final group = _groupedArticleComments[index];
+                return _buildArticleCommentGroup(group, isDark);
+              },
+            );
+    } else {
+      tabContent = _questions.isEmpty
+          ? Center(
+              child: Text(
+                'No discussions yet.',
+                style: TextStyle(color: isDark ? Colors.white60 : AppColors.textTertiary),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _questions.length,
+              itemBuilder: (context, index) {
+                final post = _questions[index];
+                final isAnonymous = post['isAnonymous'] ?? false;
+                final authorName = isAnonymous ? 'Anonymous Patient' : (post['user']?['name'] ?? 'User');
+                final dateStr = post['createdAt'] != null
+                    ? DateTime.parse(post['createdAt']).toLocal().toString().split(' ')[0]
+                    : '';
+                final answers = post['answers'] as List? ?? [];
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    child: AppCard(
-                      borderRadius: 24,
-                      padding: const EdgeInsets.all(18),
-                      border: Border.all(color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6), width: 1.5),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header Author
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFE8F0FF),
-                                child: Text(
-                                  isAnonymous ? 'A' : (authorName.toString().isNotEmpty ? authorName[0].toUpperCase() : 'U'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: AppCard(
+                    borderRadius: 24,
+                    padding: const EdgeInsets.all(18),
+                    border: Border.all(color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6), width: 1.5),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFE8F0FF),
+                              child: Text(
+                                isAnonymous ? 'A' : (authorName.toString().isNotEmpty ? authorName[0].toUpperCase() : 'U'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      authorName,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDark ? Colors.white : AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      dateStr,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: isDark ? Colors.white60 : AppColors.textTertiary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${answers.length} ${answers.length == 1 ? 'REPLY' : 'REPLIES'}',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            post['title'] ?? '',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : AppColors.textPrimary,
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            post['content'] ?? '',
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.5,
-                              color: isDark ? Colors.white70 : AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Answers list (doctor replies)
-                          if (answers.isNotEmpty) ...[
-                            const Divider(height: 24),
-                            ...answers.map((answer) {
-                              final doctorName = answer['doctor']?['name'] ?? 'Specialist';
-                              final specialty = answer['doctor']?['doctorDetails']?['speciality'] ?? 'Expert Advice';
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: isDark ? AppColors.darkSurface.withOpacity(0.5) : const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.verified_user_rounded, color: AppColors.secondary, size: 14),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          doctorName,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: isDark ? Colors.white : AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          '($specialty)',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: isDark ? Colors.white60 : AppColors.textTertiary,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      answer['content'] ?? '',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: isDark ? Colors.white70 : AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
-
-                          // Doctor Inline Reply Form
-                          if (widget.user.role == 'doctor') ...[
-                            const SizedBox(height: 12),
-                            if (_replyingToId == post['_id']) ...[
-                              TextField(
-                                controller: _replyController,
-                                maxLines: 3,
-                                decoration: InputDecoration(
-                                  hintText: 'Provide your professional insight...',
-                                  hintStyle: const TextStyle(fontSize: 13),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderSide: const BorderSide(color: AppColors.primary),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  ElevatedButton(
-                                    onPressed: () => _postReply(post['_id']),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  Text(
+                                    authorName,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : AppColors.textPrimary,
                                     ),
-                                    child: const Text('Post Reply', style: TextStyle(color: Colors.white)),
                                   ),
-                                  const SizedBox(width: 8),
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _replyingToId = null;
-                                        _replyController.clear();
-                                      });
-                                    },
-                                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    dateStr,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark ? Colors.white60 : AppColors.textTertiary,
+                                    ),
                                   ),
                                 ],
                               ),
-                            ] else ...[
-                              TextButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    _replyingToId = post['_id'];
-                                    _replyController.clear();
-                                  });
-                                },
-                                icon: const Icon(Icons.reply_rounded, size: 16, color: AppColors.primary),
-                                label: const Text(
-                                  'Reply to discussion',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${answers.length} ${answers.length == 1 ? 'REPLY' : 'REPLIES'}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
                                 ),
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          post['title'] ?? '',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          post['content'] ?? '',
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.5,
+                            color: isDark ? Colors.white70 : AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        if (answers.isNotEmpty) ...[
+                          const Divider(height: 24),
+                          ...answers.map((answer) {
+                            final doctorName = answer['doctor']?['name'] ?? 'Specialist';
+                            final specialty = answer['doctor']?['doctorDetails']?['speciality'] ?? 'Expert Advice';
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.darkSurface.withOpacity(0.5) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.verified_user_rounded, color: AppColors.secondary, size: 14),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        doctorName,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? Colors.white : AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '($specialty)',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: isDark ? Colors.white60 : AppColors.textTertiary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    answer['content'] ?? '',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: isDark ? Colors.white70 : AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                        if (widget.user.role == 'doctor') ...[
+                          const SizedBox(height: 12),
+                          if (_replyingToId == post['_id']) ...[
+                            TextField(
+                              controller: _replyController,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Provide your professional insight...',
+                                hintStyle: const TextStyle(fontSize: 13),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: const BorderSide(color: AppColors.primary),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                ElevatedButton(
+                                  onPressed: () => _postReply(post['_id']),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Post Reply', style: TextStyle(color: Colors.white)),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _replyingToId = null;
+                                      _replyController.clear();
+                                    });
+                                  },
+                                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _replyingToId = post['_id'];
+                                  _replyController.clear();
+                                });
+                              },
+                              icon: const Icon(Icons.reply_rounded, size: 16, color: AppColors.primary),
+                              label: const Text(
+                                'Reply to discussion',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
                           ],
                         ],
-                      ),
+                      ],
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
+            );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          if (widget.user.role == 'doctor') _buildSubTabs(isDark),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _fetchData,
+              color: AppColors.primary,
+              child: tabContent,
+            ),
+          ),
+        ],
       ),
       floatingActionButton: widget.user.role == 'patient'
           ? FloatingActionButton(
@@ -844,6 +1287,27 @@ Widget _buildArticleImage(String? imagePath, {double? width, double? height}) {
       child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
     ),
   );
+}
+
+class CommentNode {
+  final Map<String, dynamic> comment;
+  final List<CommentNode> children;
+
+  CommentNode({required this.comment, required this.children});
+}
+
+class FlattenedComment {
+  final Map<String, dynamic> comment;
+  final int depth;
+
+  FlattenedComment({required this.comment, required this.depth});
+}
+
+class ArticleCommentGroup {
+  final Map<String, dynamic> article;
+  final List<FlattenedComment> comments;
+
+  ArticleCommentGroup({required this.article, required this.comments});
 }
 
 // ── 4. ARTICLE DETAIL PAGE ───────────────────────────────────────────────────
