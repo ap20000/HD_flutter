@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:dio/dio.dart';
 import 'package:hamro_doctor_mobile/features/consultation_room/presentation/pages/consultation_room_page.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -9,6 +11,10 @@ import '../../../../core/widgets/app_widgets.dart';
 import '../../../../features/auth/domain/entities/user.dart';
 import '../../../../features/auth/presentation/pages/profile_page.dart';
 import '../../../../injection_container.dart';
+import '../../../../core/constants/constants.dart';
+import 'package:hamro_doctor_mobile/features/patient_dashboard/domain/entities/story.dart';
+import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/pages/story_viewer_page.dart';
+import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/widgets/story_avatar.dart';
 import '../bloc/doctor_dashboard_bloc.dart';
 import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/pages/posts_page.dart';
 
@@ -101,43 +107,197 @@ class _DoctorDashboardPageState extends State<DoctorDashboardPage> {
   }
 }
 
-class _DoctorDashboardBody extends StatelessWidget {
+class _DoctorDashboardBody extends StatefulWidget {
   final User user;
   final DoctorDashboardLoaded state;
 
   const _DoctorDashboardBody({required this.user, required this.state});
 
   @override
+  State<_DoctorDashboardBody> createState() => _DoctorDashboardBodyState();
+}
+
+class _DoctorDashboardBodyState extends State<_DoctorDashboardBody> {
+  List<GroupedStories> _groupedStories = [];
+  bool _isLoadingStories = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStories();
+  }
+
+  Future<void> _fetchStories() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingStories = true;
+    });
+
+    try {
+      final response = await sl<Dio>().get(ApiConstants.stories);
+      if (response.data != null && response.data['success'] == true) {
+        final List storiesJson = response.data['stories'] ?? [];
+        final stories = storiesJson.map((e) => Story.fromJson(e)).toList();
+
+        // Group stories by author
+        final Map<String, List<Story>> authorGroups = {};
+        for (var story in stories) {
+          authorGroups.putIfAbsent(story.authorId, () => []).add(story);
+        }
+
+        final List<GroupedStories> grouped = [];
+        for (var entry in authorGroups.entries) {
+          final authorStories = entry.value;
+          if (authorStories.isNotEmpty) {
+            final firstStory = authorStories.first;
+            grouped.add(
+              GroupedStories(
+                authorId: entry.key,
+                authorName: firstStory.authorName,
+                authorAvatar: firstStory.authorAvatar,
+                authorSpecialty: firstStory.authorSpecialty,
+                stories: authorStories,
+              ),
+            );
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _groupedStories = grouped;
+            _isLoadingStories = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingStories = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching stories on doctor dashboard: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStories = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pendingCount = state.consultations
+    final pendingCount = widget.state.consultations
         .where((c) => c.status == 'pending')
         .length;
 
     return RefreshIndicator(
-      onRefresh: () async =>
-          context.read<DoctorDashboardBloc>().add(LoadDoctorDashboardData()),
+      onRefresh: () async {
+        context.read<DoctorDashboardBloc>().add(LoadDoctorDashboardData());
+        await _fetchStories();
+      },
       color: AppColors.primary,
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          _SliverDoctorHeader(user: user, isOnline: state.isOnline),
+          _SliverDoctorHeader(
+            user: widget.user,
+            isOnline: widget.state.isOnline,
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                const SizedBox(height: 12),
+                // Horizontal scrollable stories tray for doctors
+                SizedBox(
+                  height: 100,
+                  child: _isLoadingStories
+                      ? ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: 5,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            return const StoryShimmer();
+                          },
+                        )
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _groupedStories.length + 1,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return StoryAvatar(
+                                text: 'Your Story',
+                                avatarUrl: widget.user.avatar,
+                                isYourStory: true,
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Story creation is coming soon on mobile.',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            }
+
+                            final grouped = _groupedStories[index - 1];
+                            final doctorLastName = grouped.authorName
+                                .split(" ")
+                                .last;
+                            return StoryAvatar(
+                              text: 'Dr. $doctorLastName',
+                              avatarUrl: grouped.authorAvatar,
+                              hasStories: true,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StoryViewerPage(
+                                      groupedStoriesList: _groupedStories,
+                                      initialAuthorIndex: index - 1,
+                                      onConsultNow: (doctorId) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Consultation requests are only available for patient accounts.',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
                 const SizedBox(height: 16),
-                _DoctorOnlineStatusCard(isOnline: state.isOnline),
+                _DoctorOnlineStatusCard(isOnline: widget.state.isOnline),
                 const SizedBox(height: 24),
                 _PerformanceStats(
-                  stats: state.stats,
+                  stats: widget.state.stats,
                   pendingCount: pendingCount,
                 ),
                 const SizedBox(height: 28),
-                _PendingRequestsSection(consultations: state.consultations),
+                _PendingRequestsSection(
+                  consultations: widget.state.consultations,
+                ),
                 const SizedBox(height: 28),
                 const _OpdScheduleSection(),
                 const SizedBox(height: 28),
-                _WorkplaceSection(workplaces: state.workplaces),
+                _WorkplaceSection(workplaces: widget.state.workplaces),
                 const SizedBox(height: 40),
               ]),
             ),

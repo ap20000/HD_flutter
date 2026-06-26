@@ -8,9 +8,7 @@ import '../../../../core/widgets/app_widgets.dart';
 import '../../../../injection_container.dart';
 import '../../../../core/constants/constants.dart';
 import '../../../../features/auth/domain/entities/user.dart';
-import '../../domain/entities/story.dart';
 import '../../domain/entities/dashboard_data.dart';
-import 'story_viewer_page.dart';
 
 class PostsPage extends StatefulWidget {
   final User user;
@@ -27,7 +25,7 @@ class _PostsPageState extends State<PostsPage> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -60,7 +58,6 @@ class _PostsPageState extends State<PostsPage> with SingleTickerProviderStateMix
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           tabs: const [
             Tab(text: 'Articles'),
-            Tab(text: 'Stories'),
             Tab(text: 'Discussion'),
           ],
         ),
@@ -69,7 +66,6 @@ class _PostsPageState extends State<PostsPage> with SingleTickerProviderStateMix
         controller: _tabController,
         children: [
           _ArticlesTab(user: widget.user),
-          _StoriesTab(user: widget.user),
           _DiscussionTab(user: widget.user),
         ],
       ),
@@ -270,279 +266,6 @@ class _ArticlesTabState extends State<_ArticlesTab> {
   }
 }
 
-// ── 2. STORIES TAB ───────────────────────────────────────────────────────────
-
-class _StoriesTab extends StatefulWidget {
-  final User user;
-  const _StoriesTab({required this.user});
-
-  @override
-  State<_StoriesTab> createState() => _StoriesTabState();
-}
-
-class _StoriesTabState extends State<_StoriesTab> {
-  List<GroupedStories> _groupedStories = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchStories();
-  }
-
-  Future<void> _fetchStories() async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final response = await sl<Dio>().get('${ApiConstants.baseUrl}${ApiConstants.stories}');
-      if (response.data != null && response.data['success'] == true) {
-        final List storiesJson = response.data['stories'] ?? [];
-        final stories = storiesJson.map((e) => Story.fromJson(e)).toList();
-
-        // Group stories by author
-        final Map<String, List<Story>> authorGroups = {};
-        for (var story in stories) {
-          authorGroups.putIfAbsent(story.authorId, () => []).add(story);
-        }
-
-        final List<GroupedStories> grouped = [];
-        for (var entry in authorGroups.entries) {
-          final authorStories = entry.value;
-          if (authorStories.isNotEmpty) {
-            final firstStory = authorStories.first;
-            grouped.add(GroupedStories(
-              authorId: entry.key,
-              authorName: firstStory.authorName,
-              authorAvatar: firstStory.authorAvatar,
-              authorSpecialty: firstStory.authorSpecialty,
-              stories: authorStories,
-            ));
-          }
-        }
-
-        if (mounted) {
-          setState(() {
-            _groupedStories = grouped;
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching stories: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-    }
-
-    return RefreshIndicator(
-      onRefresh: _fetchStories,
-      color: AppColors.primary,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(20),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 20,
-          childAspectRatio: 0.8,
-        ),
-        itemCount: _groupedStories.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _buildYourStoryButton(isDark);
-          }
-
-          final grouped = _groupedStories[index - 1];
-          final doctorLastName = grouped.authorName.split(" ").last;
-
-          return GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => StoryViewerPage(
-                    groupedStoriesList: _groupedStories,
-                    initialAuthorIndex: index - 1,
-                    onConsultNow: (doctorId) {
-                      // Trigger consultation request flow or print info
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Consultation request initiated with Dr. ${grouped.authorName}'),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              );
-            },
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFEA580C), Color(0xFFD946EF), Color(0xFF3B82F6)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkBackground : Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: CircleAvatar(
-                      radius: 30,
-                      backgroundColor: AppColors.primarySoft,
-                      backgroundImage: _getAvatarBytes(grouped.authorAvatar) != null
-                          ? MemoryImage(_getAvatarBytes(grouped.authorAvatar)!)
-                          : null,
-                      child: _getAvatarBytes(grouped.authorAvatar) == null
-                          ? const Icon(Icons.person, color: AppColors.primary, size: 28)
-                          : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Dr. $doctorLastName',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : AppColors.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  grouped.authorSpecialty ?? 'Specialist',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isDark ? Colors.white60 : AppColors.textTertiary,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildYourStoryButton(bool isDark) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        if (widget.user.role == 'patient') {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-              title: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: AppColors.primary),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Health Stories',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              content: Text(
-                'Only verified medical specialists can post health stories. Feel free to browse active stories from our doctors!',
-                style: TextStyle(
-                  color: isDark ? Colors.white70 : AppColors.textSecondary,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Got it', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Story creation is coming soon on mobile.')),
-          );
-        }
-      },
-      child: Column(
-        children: [
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 33,
-                backgroundColor: AppColors.primarySoft,
-                backgroundImage: _getAvatarBytes(widget.user.avatar) != null
-                    ? MemoryImage(_getAvatarBytes(widget.user.avatar)!)
-                    : null,
-                child: _getAvatarBytes(widget.user.avatar) == null
-                    ? const Icon(Icons.person, color: AppColors.primary, size: 28)
-                    : null,
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 12),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your Story',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : AppColors.textPrimary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ── 3. DISCUSSION TAB ────────────────────────────────────────────────────────
 
