@@ -18,6 +18,7 @@ import '../../../consultation_room/presentation/pages/consultation_room_page.dar
 import 'book_appointment_page.dart';
 import 'third_pole_ai_page.dart';
 import 'story_viewer_page.dart';
+import 'posts_page.dart';
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -139,13 +140,7 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
       case 2:
         return ThirdPoleAIChatPage(user: widget.user);
       case 3:
-        return _EmptyFeaturePage(
-          title: 'Health Articles',
-          icon: Icons.article_outlined,
-          description:
-              'Read expert-written articles about health, wellness, and medical topics.',
-          isDark: Theme.of(context).brightness == Brightness.dark,
-        );
+        return PostsPage(user: widget.user);
       case 4:
         return ProfilePage(user: widget.user);
       default:

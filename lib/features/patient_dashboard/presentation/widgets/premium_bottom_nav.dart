@@ -38,9 +38,9 @@ class PremiumBottomNav extends StatelessWidget {
           ),
           _buildNavItem(
             3,
-            Icons.description,
-            Icons.description_outlined,
-            'Records',
+            Icons.feed,
+            Icons.feed_outlined,
+            'Posts',
           ),
           _buildNavItem(4, Icons.person, Icons.person_outline, 'Profile'),
         ],

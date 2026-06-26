@@ -10,6 +10,7 @@ import '../../../../features/auth/domain/entities/user.dart';
 import '../../../../features/auth/presentation/pages/profile_page.dart';
 import '../../../../injection_container.dart';
 import '../bloc/doctor_dashboard_bloc.dart';
+import '../../patient_dashboard/presentation/pages/posts_page.dart';
 
 Uint8List? _getAvatarBytes(String? base64Str) {
   if (base64Str == null || base64Str.isEmpty) return null;
@@ -91,10 +92,7 @@ class _DoctorDashboardPageState extends State<DoctorDashboardPage> {
           },
         );
       case 2:
-        return const _DoctorPlaceholderPage(
-          title: 'Articles',
-          icon: Icons.article_outlined,
-        );
+        return PostsPage(user: widget.user);
       case 3:
         return ProfilePage(user: widget.user);
       default:
@@ -855,7 +853,7 @@ class _PremiumDoctorBottomNav extends StatelessWidget {
             Icons.assignment_turned_in_outlined,
             'Consultations',
           ),
-          _buildNavItem(2, Icons.library_books_outlined, 'Articles'),
+          _buildNavItem(2, Icons.feed_outlined, 'Posts'),
           _buildNavItem(3, Icons.person_outline_rounded, 'Profile'),
         ],
       ),
