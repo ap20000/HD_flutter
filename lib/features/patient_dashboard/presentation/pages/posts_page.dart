@@ -186,7 +186,7 @@ class _ArticlesTabState extends State<_ArticlesTab> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ArticleDetailPage(article: article),
+                    builder: (context) => ArticleDetailPage(article: article, user: widget.user),
                   ),
                 );
               },
@@ -681,7 +681,7 @@ class _DiscussionTabState extends State<_DiscussionTab> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ArticleDetailPage(article: articleData),
+                  builder: (context) => ArticleDetailPage(article: articleData, user: widget.user),
                 ),
               );
             },
@@ -1312,24 +1312,404 @@ class ArticleCommentGroup {
 
 // ── 4. ARTICLE DETAIL PAGE ───────────────────────────────────────────────────
 
-class ArticleDetailPage extends StatelessWidget {
+class ArticleDetailPage extends StatefulWidget {
   final dynamic article;
-  const ArticleDetailPage({super.key, required this.article});
+  final User user;
+
+  const ArticleDetailPage({super.key, required this.article, required this.user});
+
+  @override
+  State<ArticleDetailPage> createState() => _ArticleDetailPageState();
+}
+
+class _ArticleDetailPageState extends State<ArticleDetailPage> {
+  List<dynamic> _rawComments = [];
+  List<FlattenedComment> _nestedComments = [];
+  bool _isLoadingComments = true;
+  bool _isSubmitting = false;
+  String? _replyingToCommentId;
+
+  final TextEditingController _commentController = TextEditingController();
+  final TextEditingController _replyController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCommentsInitial();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchCommentsInitial() async {
+    setState(() {
+      _isLoadingComments = true;
+    });
+    await _fetchComments();
+    if (mounted) {
+      setState(() {
+        _isLoadingComments = false;
+      });
+    }
+  }
+
+  Future<void> _fetchComments() async {
+    final articleId = widget.article['_id'] ?? widget.article['id'] ?? '';
+    if (articleId.isEmpty) return;
+
+    try {
+      final response = await sl<Dio>().get('${ApiConstants.baseUrl}/api/v1/articles/$articleId/comments');
+      if (response.data != null && response.data['success'] == true) {
+        if (mounted) {
+          setState(() {
+            _rawComments = response.data['comments'] ?? [];
+          });
+          _nestComments();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching comments: $e');
+    }
+  }
+
+  void _nestComments() {
+    if (_rawComments.isEmpty) {
+      setState(() {
+        _nestedComments = [];
+      });
+      return;
+    }
+
+    DateTime parseDate(dynamic date) {
+      if (date == null) return DateTime.fromMillisecondsSinceEpoch(0);
+      try {
+        return DateTime.parse(date.toString());
+      } catch (_) {
+        return DateTime.fromMillisecondsSinceEpoch(0);
+      }
+    }
+
+    final commentsList = List<Map<String, dynamic>>.from(
+      _rawComments.map((c) => Map<String, dynamic>.from(c)),
+    );
+
+    commentsList.sort((a, b) => parseDate(a['createdAt']).compareTo(parseDate(b['createdAt'])));
+
+    final Map<String, CommentNode> nodeMap = {};
+    for (var comment in commentsList) {
+      final cid = comment['_id'] ?? comment['id'] ?? '';
+      if (cid.isNotEmpty) {
+        nodeMap[cid] = CommentNode(comment: comment, children: []);
+      }
+    }
+
+    final List<CommentNode> roots = [];
+    for (var comment in commentsList) {
+      final cid = comment['_id'] ?? comment['id'] ?? '';
+      if (cid.isEmpty) continue;
+      final node = nodeMap[cid]!;
+
+      String? parentId;
+      final parentVal = comment['parentComment'];
+      if (parentVal is String) {
+        parentId = parentVal;
+      } else if (parentVal is Map) {
+        parentId = parentVal['_id'] ?? parentVal['id'];
+      }
+
+      if (parentId == null || !nodeMap.containsKey(parentId)) {
+        roots.add(node);
+      } else {
+        nodeMap[parentId]!.children.add(node);
+      }
+    }
+
+    final List<FlattenedComment> flattenedList = [];
+    void flattenTree(CommentNode node, int depth) {
+      flattenedList.add(FlattenedComment(comment: node.comment, depth: depth));
+      for (var child in node.children) {
+        flattenTree(child, depth + 1);
+      }
+    }
+
+    for (var root in roots) {
+      flattenTree(root, 0);
+    }
+
+    setState(() {
+      _nestedComments = flattenedList;
+    });
+  }
+
+  Future<void> _postComment({String? parentCommentId}) async {
+    final articleId = widget.article['_id'] ?? widget.article['id'] ?? '';
+    if (articleId.isEmpty) return;
+
+    final controller = parentCommentId == null ? _commentController : _replyController;
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final response = await sl<Dio>().post(
+        '${ApiConstants.baseUrl}/api/v1/articles/$articleId/comments',
+        data: {
+          'text': text,
+          'parentCommentId': parentCommentId,
+        },
+      );
+
+      if (response.data != null && response.data['success'] == true) {
+        controller.clear();
+        if (parentCommentId != null) {
+          _replyingToCommentId = null;
+        }
+        await _fetchComments();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to post comment')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error posting comment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
 
   String _stripHtml(String htmlString) {
     final regExp = RegExp(r'<[^>]*>|&[^;]+;', multiLine: true, caseSensitive: false);
     return htmlString.replaceAll(regExp, ' ').trim();
   }
 
+  Widget _buildCommentCard(FlattenedComment flatComment, bool isDark) {
+    final comment = flatComment.comment;
+    final author = comment['author'];
+    final authorName = author?['name'] ?? 'Anonymous User';
+    final authorRole = author?['role'] ?? 'patient';
+    final dateStr = comment['createdAt'] != null
+        ? DateTime.parse(comment['createdAt']).toLocal().toString().split(' ')[0]
+        : '';
+    final depth = flatComment.depth.clamp(0, 4);
+    final isReplying = _replyingToCommentId == comment['_id'];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (int i = 0; i < depth; i++)
+              Container(
+                width: 1.5,
+                margin: EdgeInsets.only(
+                  left: i == 0 ? 0.0 : 8.0,
+                  right: i == depth - 1 ? 12.0 : 0.0,
+                  top: 4,
+                  bottom: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark 
+                      ? (depth == 0 ? AppColors.darkSurface.withOpacity(0.5) : AppColors.darkSurface.withOpacity(0.2)) 
+                      : (depth == 0 ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? AppColors.dividerDark : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFE8F0FF),
+                          child: Text(
+                            authorName.isNotEmpty ? authorName[0].toUpperCase() : 'U',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  authorName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: authorRole == 'doctor'
+                                      ? AppColors.success.withOpacity(0.1)
+                                      : AppColors.primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  authorRole.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 7,
+                                    fontWeight: FontWeight.bold,
+                                    color: authorRole == 'doctor' ? AppColors.success : AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          dateStr,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white60 : AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      comment['text'] ?? '',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              if (isReplying) {
+                                _replyingToCommentId = null;
+                                _replyController.clear();
+                              } else {
+                                _replyingToCommentId = comment['_id'];
+                                _replyController.clear();
+                              }
+                            });
+                          },
+                          icon: Icon(
+                            isReplying ? Icons.close_rounded : Icons.reply_rounded, 
+                            size: 14, 
+                            color: AppColors.primary,
+                          ),
+                          label: Text(
+                            isReplying ? 'Cancel' : 'Reply',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (isReplying) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _replyController,
+                              style: TextStyle(fontSize: 12.5, color: isDark ? Colors.white : Colors.black),
+                              decoration: InputDecoration(
+                                hintText: 'Write a reply...',
+                                hintStyle: const TextStyle(fontSize: 12),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                isDense: true,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: const BorderSide(color: AppColors.primary),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                )
+                              : IconButton(
+                                  onPressed: () => _postComment(parentCommentId: comment['_id']),
+                                  icon: const Icon(Icons.send_rounded, size: 18, color: AppColors.primary),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final authorName = article['author']?['name'] ?? 'Admin';
-    final thumbnail = article['featureImage'];
-    final dateStr = article['createdAt'] != null
-        ? DateTime.parse(article['createdAt']).toLocal().toString().split(' ')[0]
+    final authorName = widget.article['author']?['name'] ?? 'Admin';
+    final thumbnail = widget.article['featureImage'];
+    final dateStr = widget.article['createdAt'] != null
+        ? DateTime.parse(widget.article['createdAt']).toLocal().toString().split(' ')[0]
         : '';
-    final plainContent = _stripHtml(article['content'] ?? '');
+    final plainContent = _stripHtml(widget.article['content'] ?? '');
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF8FAFC),
@@ -1346,7 +1726,6 @@ class ArticleDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Article image header
             if (thumbnail != null)
               SizedBox(
                 width: double.infinity,
@@ -1359,7 +1738,7 @@ class ArticleDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (article['category'] != null)
+                  if (widget.article['category'] != null)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
@@ -1367,7 +1746,7 @@ class ArticleDetailPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        article['category'].toString().toUpperCase(),
+                        widget.article['category'].toString().toUpperCase(),
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -1377,7 +1756,7 @@ class ArticleDetailPage extends StatelessWidget {
                     ),
                   const SizedBox(height: 12),
                   Text(
-                    article['title'] ?? '',
+                    widget.article['title'] ?? '',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -1416,6 +1795,92 @@ class ArticleDetailPage extends StatelessWidget {
                       color: isDark ? Colors.white70 : AppColors.textPrimary,
                     ),
                   ),
+                  const Divider(height: 40),
+
+                  // Comment box header
+                  Text(
+                    'Comments (${_rawComments.length})',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Root comment input box
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFE8F0FF),
+                        child: Text(
+                          widget.user.name.isNotEmpty ? widget.user.name[0].toUpperCase() : 'U',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          style: TextStyle(fontSize: 13.5, color: isDark ? Colors.white : Colors.black),
+                          decoration: InputDecoration(
+                            hintText: 'Share your thoughts on this article...',
+                            hintStyle: const TextStyle(fontSize: 12.5),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            isDense: true,
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(color: AppColors.primary),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _isSubmitting && _replyingToCommentId == null
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                            )
+                          : IconButton(
+                              onPressed: () => _postComment(),
+                              icon: const Icon(Icons.send_rounded, color: AppColors.primary),
+                            ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Comments list
+                  if (_isLoadingComments)
+                    const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  else if (_nestedComments.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'No comments yet. Be the first to share your thoughts!',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white60 : AppColors.textTertiary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: _nestedComments.map((flatComment) {
+                        return _buildCommentCard(flatComment, isDark);
+                      }).toList(),
+                    ),
                   const SizedBox(height: 40),
                 ],
               ),
