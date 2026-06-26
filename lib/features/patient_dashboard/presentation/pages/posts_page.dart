@@ -285,6 +285,7 @@ class _DiscussionTabState extends State<_DiscussionTab> {
   String? _error;
   final TextEditingController _replyController = TextEditingController();
   String? _replyingToId;
+  String? _replyingToCommentId;
   int _activeSubTab = 0; // 0 = Public Forum, 1 = Article Comments
 
   @override
@@ -364,6 +365,51 @@ class _DiscussionTabState extends State<_DiscussionTab> {
         _replyController.clear();
         setState(() {
           _replyingToId = null;
+        });
+        _fetchData();
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to submit reply')),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error replying: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _postArticleCommentReply(String articleId, String parentCommentId) async {
+    final text = _replyController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await sl<Dio>().post(
+        '${ApiConstants.baseUrl}/api/v1/articles/$articleId/comments',
+        data: {
+          'text': text,
+          'parentCommentId': parentCommentId,
+        },
+      );
+
+      if (response.data != null && response.data['success'] == true) {
+        _replyController.clear();
+        setState(() {
+          _replyingToCommentId = null;
         });
         _fetchData();
       } else {
@@ -753,6 +799,15 @@ class _DiscussionTabState extends State<_DiscussionTab> {
         ? DateTime.parse(comment['createdAt']).toLocal().toString().split(' ')[0]
         : '';
     final depth = flatComment.depth.clamp(0, 4);
+    final isReplying = _replyingToCommentId == comment['_id'];
+
+    final articleVal = comment['article'];
+    String articleId = '';
+    if (articleVal is Map) {
+      articleId = articleVal['_id'] ?? articleVal['id'] ?? '';
+    } else if (articleVal is String) {
+      articleId = articleVal;
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -860,6 +915,78 @@ class _DiscussionTabState extends State<_DiscussionTab> {
                         color: isDark ? Colors.white70 : AppColors.textSecondary,
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Spacer(),
+                        if (articleId.isNotEmpty)
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                if (isReplying) {
+                                  _replyingToCommentId = null;
+                                  _replyController.clear();
+                                } else {
+                                  _replyingToCommentId = comment['_id'];
+                                  _replyController.clear();
+                                }
+                              });
+                            },
+                            icon: Icon(
+                              isReplying ? Icons.close_rounded : Icons.reply_rounded, 
+                              size: 14, 
+                              color: AppColors.primary,
+                            ),
+                            label: Text(
+                              isReplying ? 'Cancel' : 'Reply',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (isReplying) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _replyController,
+                              style: TextStyle(fontSize: 12.5, color: isDark ? Colors.white : Colors.black),
+                              decoration: InputDecoration(
+                                hintText: 'Write a reply...',
+                                hintStyle: const TextStyle(fontSize: 12),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                isDense: true,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: const BorderSide(color: AppColors.primary),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () => _postArticleCommentReply(articleId, comment['_id']),
+                            icon: const Icon(Icons.send_rounded, size: 18, color: AppColors.primary),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
