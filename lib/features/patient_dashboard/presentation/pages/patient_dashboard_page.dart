@@ -19,6 +19,7 @@ import 'book_appointment_page.dart';
 import 'third_pole_ai_page.dart';
 import 'story_viewer_page.dart';
 import 'posts_page.dart';
+import 'add_story_page.dart';
 import '../widgets/story_avatar.dart';
 
 // ── Main Page ────────────────────────────────────────────────────────────────
@@ -417,7 +418,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                 text: 'Your Story',
                                 avatarUrl: widget.user.avatar,
                                 isYourStory: true,
-                                onTap: () {
+                                onTap: () async {
                                   HapticFeedback.lightImpact();
                                   if (widget.user.role == 'patient') {
                                     showDialog(
@@ -469,11 +470,15 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                       ),
                                     );
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Story creation is coming soon on mobile.'),
+                                    final result = await Navigator.push<bool>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AddStoryPage(user: widget.user),
                                       ),
                                     );
+                                    if (result == true) {
+                                      _fetchStories();
+                                    }
                                   }
                                 },
                               );

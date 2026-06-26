@@ -15,6 +15,7 @@ import '../../../../core/constants/constants.dart';
 import 'package:hamro_doctor_mobile/features/patient_dashboard/domain/entities/story.dart';
 import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/pages/story_viewer_page.dart';
 import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/widgets/story_avatar.dart';
+import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/pages/add_story_page.dart';
 import '../bloc/doctor_dashboard_bloc.dart';
 import 'package:hamro_doctor_mobile/features/patient_dashboard/presentation/pages/posts_page.dart';
 
@@ -235,15 +236,17 @@ class _DoctorDashboardBodyState extends State<_DoctorDashboardBody> {
                                 text: 'Your Story',
                                 avatarUrl: widget.user.avatar,
                                 isYourStory: true,
-                                onTap: () {
+                                onTap: () async {
                                   HapticFeedback.lightImpact();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Story creation is coming soon on mobile.',
-                                      ),
+                                  final result = await Navigator.push<bool>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => AddStoryPage(user: widget.user),
                                     ),
                                   );
+                                  if (result == true) {
+                                    _fetchStories();
+                                  }
                                 },
                               );
                             }
