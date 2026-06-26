@@ -438,7 +438,7 @@ class _StoriesTabState extends State<_StoriesTab> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  grouped.authorSpecialty,
+                  grouped.authorSpecialty ?? 'Specialist',
                   style: TextStyle(
                     fontSize: 10,
                     color: isDark ? Colors.white60 : AppColors.textTertiary,
@@ -1226,7 +1226,7 @@ class ArticleDetailPage extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       height: 1.7,
-                      color: isDark ? Colors.white90 : AppColors.textPrimary,
+                      color: isDark ? Colors.white70 : AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 40),
