@@ -20,9 +20,12 @@ import 'features/patient_dashboard/domain/usecases/request_consultation_usecase.
 import 'features/doctor_dashboard/domain/repositories/doctor_dashboard_repository.dart';
 import 'features/doctor_dashboard/domain/usecases/doctor_dashboard_usecases.dart';
 import 'features/doctor_dashboard/presentation/bloc/doctor_dashboard_bloc.dart';
-import 'core/services/socket_service.dart';
-import 'features/consultation_room/core/webrtc_helper.dart';
-import 'features/consultation_room/presentation/bloc/consultation_room_bloc.dart';
+import 'core/network/socket_service.dart';
+import 'core/webrtc/webrtc_service.dart';
+import 'features/consultation/data/datasources/webrtc_datasource.dart';
+import 'features/consultation/data/repositories/consultation_repository_impl.dart';
+import 'features/consultation/domain/repositories/consultation_repository.dart';
+import 'features/consultation/presentation/bloc/consultation_bloc.dart';
 
 import 'core/network/auth_interceptor.dart';
 
@@ -62,9 +65,9 @@ Future<void> init() async {
   );
 
   sl.registerFactory(
-    () => ConsultationRoomBloc(
+    () => ConsultationBloc(
       socketService: sl(),
-      webrtcHelper: sl(),
+      consultationRepository: sl(),
       getConsultationByIdUseCase: sl(),
     ),
   );
@@ -121,7 +124,18 @@ Future<void> init() async {
     return dio;
   });
 
+  // Consultation Features
+  sl.registerLazySingleton<WebRTCDatasource>(
+    () => WebRTCDatasourceImpl(webrtcService: sl()),
+  );
+  sl.registerLazySingleton<ConsultationRepository>(
+    () => ConsultationRepositoryImpl(
+      webrtcDatasource: sl(),
+      socketService: sl(),
+    ),
+  );
+
   // Services & Helpers
   sl.registerLazySingleton(() => SocketService());
-  sl.registerLazySingleton(() => WebRTCHelper());
+  sl.registerLazySingleton(() => WebRTCService());
 }

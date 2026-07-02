@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
-import 'package:hamro_doctor_mobile/features/consultation_room/presentation/pages/consultation_room_page.dart';
+import 'package:hamro_doctor_mobile/features/consultation/presentation/pages/consultation_page.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_widgets.dart';
@@ -658,7 +658,7 @@ class _PendingRequestCard extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ConsultationRoomPage(
+                    builder: (_) => ConsultationPage(
                       consultationId: consultation.id,
                       currentUserId:
                           (context
@@ -1228,7 +1228,7 @@ class _ActiveConsultationsTab extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ConsultationRoomPage(
+                builder: (_) => ConsultationPage(
                   consultationId: 'samyog_text_session',
                   currentUserId: user.id,
                   otherUserName: 'Samyog',
@@ -1251,7 +1251,7 @@ class _ActiveConsultationsTab extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ConsultationRoomPage(
+                builder: (_) => ConsultationPage(
                   consultationId: 'aditi_video_session',
                   currentUserId: user.id,
                   otherUserName: 'Aditi',
@@ -1292,7 +1292,7 @@ class _ActiveConsultationsTab extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ConsultationRoomPage(
+                  builder: (_) => ConsultationPage(
                     consultationId: consult.id,
                     currentUserId: user.id,
                     otherUserName: consult.patientName ?? 'Patient',

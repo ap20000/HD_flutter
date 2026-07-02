@@ -14,7 +14,7 @@ import '../bloc/patient_dashboard_bloc.dart';
 import '../bloc/patient_dashboard_event.dart';
 import '../bloc/patient_dashboard_state.dart';
 import '../widgets/premium_bottom_nav.dart';
-import '../../../consultation_room/presentation/pages/consultation_room_page.dart';
+import '../../../consultation/presentation/pages/consultation_page.dart';
 import 'book_appointment_page.dart';
 import 'third_pole_ai_page.dart';
 import 'story_viewer_page.dart';
@@ -1744,7 +1744,7 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ConsultationRoomPage(
+                              builder: (_) => ConsultationPage(
                                 consultationId: consultation.id,
                                 currentUserId: widget.currentUserId,
                                 otherUserName: consultation.doctorName,

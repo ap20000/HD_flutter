@@ -8,8 +8,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../injection_container.dart';
-import '../../../../features/patient_dashboard/domain/entities/dashboard_data.dart';
-import '../bloc/consultation_room_bloc.dart';
+import '../bloc/consultation_bloc.dart';
+import '../bloc/consultation_event.dart';
+import '../bloc/consultation_state.dart';
 import 'prescription_page.dart';
 
 Uint8List? _getAvatarBytes(String? base64Str) {
@@ -25,7 +26,7 @@ Uint8List? _getAvatarBytes(String? base64Str) {
   }
 }
 
-class ConsultationRoomPage extends StatefulWidget {
+class ConsultationPage extends StatefulWidget {
   final String consultationId;
   final String currentUserId;
   final String otherUserName;
@@ -33,7 +34,7 @@ class ConsultationRoomPage extends StatefulWidget {
   final bool isDoctor;
   final Map<String, dynamic>? initialPrescription;
 
-  const ConsultationRoomPage({
+  const ConsultationPage({
     super.key,
     required this.consultationId,
     required this.currentUserId,
@@ -44,10 +45,10 @@ class ConsultationRoomPage extends StatefulWidget {
   });
 
   @override
-  State<ConsultationRoomPage> createState() => _ConsultationRoomPageState();
+  State<ConsultationPage> createState() => _ConsultationPageState();
 }
 
-class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
+class _ConsultationPageState extends State<ConsultationPage> {
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   final TextEditingController _messageController = TextEditingController();
@@ -60,31 +61,21 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
 
   Future<void> _initRenderers() async {
     try {
-      print('ConsultationRoomPage: Initializing renderers...');
+      print('ConsultationPage: Initializing video renderers...');
       await Future.wait([
-        _localRenderer.initialize().timeout(const Duration(seconds: 5)),
-        _remoteRenderer.initialize().timeout(const Duration(seconds: 5)),
+        _localRenderer.initialize(),
+        _remoteRenderer.initialize(),
       ]);
-      await _requestPermissions();
-      print('ConsultationRoomPage: Renderers initialized.');
+      _localRenderer.muted = true; // Mute local camera mic feedback
+      _remoteRenderer.muted = false; // Ensure remote renderer plays audio
+      print('ConsultationPage: Video renderers initialized.');
     } catch (e) {
-      print('ConsultationRoomPage: Error during renderer init: $e');
+      print('ConsultationPage: Error during video renderer init: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Hardware initialization issue: $e')),
         );
       }
-    }
-  }
-
-  Future<void> _requestPermissions() async {
-    try {
-      await [
-        Permission.camera,
-        Permission.microphone,
-      ].request().timeout(const Duration(seconds: 5));
-    } catch (e) {
-      print('ConsultationRoomPage: Permission request timeout or error: $e');
     }
   }
 
@@ -100,14 +91,21 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) =>
-          sl<ConsultationRoomBloc>()
-            ..add(JoinConsultationRoom(widget.consultationId)),
-      child: BlocConsumer<ConsultationRoomBloc, ConsultationRoomState>(
+          sl<ConsultationBloc>()..add(JoinConsultation(widget.consultationId)),
+      child: BlocConsumer<ConsultationBloc, ConsultationState>(
         listener: (context, state) {
-          if (state.localStream != null)
+          if (state.localStream != null) {
             _localRenderer.srcObject = state.localStream;
-          if (state.remoteStream != null)
+          } else {
+            _localRenderer.srcObject = null;
+          }
+          
+          if (state.remoteStream != null) {
             _remoteRenderer.srcObject = state.remoteStream;
+          } else {
+            _remoteRenderer.srcObject = null;
+          }
+
           if (state.error != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -121,21 +119,18 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
           return PopScope(
             onPopInvokedWithResult: (didPop, result) {
               if (didPop && state.isCallActive) {
-                context.read<ConsultationRoomBloc>().add(EndConsultationCall());
+                context.read<ConsultationBloc>().add(EndConsultationCall());
               }
             },
             child: Scaffold(
               resizeToAvoidBottomInset: !state.isCallActive,
-              backgroundColor: const Color(
-                0xFFF8FAFC,
-              ), // Premium light background
+              backgroundColor: const Color(0xFFF8FAFC), // Premium light background
               appBar: _buildAppBar(context, state),
               body: Stack(
                 children: [
                   if (!state.isCallActive) _buildChatView(context, state),
                   if (state.isCallActive) _buildCallOverlay(context, state),
-                  if (state.hasIncomingCall)
-                    _buildIncomingCallOverlay(context, state),
+                  if (state.hasIncomingCall) _buildIncomingCallOverlay(context, state),
                 ],
               ),
             ),
@@ -147,7 +142,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
 
   PreferredSizeWidget _buildAppBar(
     BuildContext context,
-    ConsultationRoomState state,
+    ConsultationState state,
   ) {
     return AppBar(
       backgroundColor: Colors.white,
@@ -209,7 +204,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
                   ),
                 ),
                 Text(
-                  state.isCallActive ? 'In Video Call' : 'Active Session',
+                  state.isCallActive ? 'In Call' : 'Active Session',
                   style: const TextStyle(
                     fontFamily: AppTypography.fontFamily,
                     fontSize: 11,
@@ -250,7 +245,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
             color: Color(0xFF004AC6),
             size: 22,
           ),
-          onPressed: () => context.read<ConsultationRoomBloc>().add(
+          onPressed: () => context.read<ConsultationBloc>().add(
             const StartCall(isVideo: false),
           ),
         ),
@@ -260,7 +255,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
             color: Color(0xFF004AC6),
             size: 22,
           ),
-          onPressed: () => context.read<ConsultationRoomBloc>().add(
+          onPressed: () => context.read<ConsultationBloc>().add(
             const StartCall(isVideo: true),
           ),
         ),
@@ -269,7 +264,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
     );
   }
 
-  Widget _buildChatView(BuildContext context, ConsultationRoomState state) {
+  Widget _buildChatView(BuildContext context, ConsultationState state) {
     // Generate list of messages combined with default high-fidelity mock messages
     final List<Map<String, dynamic>> mockMessages = [
       {
@@ -486,7 +481,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
           GestureDetector(
             onTap: () {
               if (_messageController.text.isNotEmpty) {
-                context.read<ConsultationRoomBloc>().add(
+                context.read<ConsultationBloc>().add(
                   SendChatMessage(
                     _messageController.text,
                     widget.currentUserId,
@@ -514,7 +509,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
     );
   }
 
-  Widget _buildCallOverlay(BuildContext context, ConsultationRoomState state) {
+  Widget _buildCallOverlay(BuildContext context, ConsultationState state) {
     if (!state.isVideoCall) {
       return _buildAudioCallOverlay(context, state);
     }
@@ -603,7 +598,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
     );
   }
 
-  Widget _buildAudioCallOverlay(BuildContext context, ConsultationRoomState state) {
+  Widget _buildAudioCallOverlay(BuildContext context, ConsultationState state) {
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -679,26 +674,39 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
               _CallControlButton(
                 icon: state.isMuted ? Icons.mic_off : Icons.mic,
                 onPressed: () =>
-                    context.read<ConsultationRoomBloc>().add(ToggleMute()),
+                    context.read<ConsultationBloc>().add(ToggleMute()),
                 color: state.isMuted ? const Color(0xFFEF4444) : Colors.white24,
               ),
               const SizedBox(width: 32),
               _CallControlButton(
                 icon: Icons.call_end,
                 onPressed: () =>
-                    context.read<ConsultationRoomBloc>().add(EndConsultationCall()),
+                    context.read<ConsultationBloc>().add(EndConsultationCall()),
                 color: const Color(0xFFEF4444),
                 isLarge: true,
               ),
             ],
           ),
           const SizedBox(height: 64),
+          if (state.remoteStream != null)
+            SizedBox(
+              width: 1,
+              height: 1,
+              child: Opacity(
+                opacity: 0.01,
+                child: RTCVideoView(
+                  _remoteRenderer,
+                  mirror: false,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildCallControls(BuildContext context, ConsultationRoomState state) {
+  Widget _buildCallControls(BuildContext context, ConsultationState state) {
     return Positioned(
       bottom: 40,
       left: 0,
@@ -709,14 +717,14 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
           _CallControlButton(
             icon: state.isMuted ? Icons.mic_off : Icons.mic,
             onPressed: () =>
-                context.read<ConsultationRoomBloc>().add(ToggleMute()),
+                context.read<ConsultationBloc>().add(ToggleMute()),
             color: state.isMuted ? const Color(0xFFEF4444) : Colors.white24,
           ),
           const SizedBox(width: 24),
           _CallControlButton(
             icon: Icons.call_end,
             onPressed: () =>
-                context.read<ConsultationRoomBloc>().add(EndConsultationCall()),
+                context.read<ConsultationBloc>().add(EndConsultationCall()),
             color: const Color(0xFFEF4444),
             isLarge: true,
           ),
@@ -724,8 +732,15 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
           _CallControlButton(
             icon: state.isCameraOn ? Icons.videocam : Icons.videocam_off,
             onPressed: () =>
-                context.read<ConsultationRoomBloc>().add(ToggleCamera()),
+                context.read<ConsultationBloc>().add(ToggleCamera()),
             color: state.isCameraOn ? Colors.white24 : const Color(0xFFEF4444),
+          ),
+          const SizedBox(width: 16),
+          _CallControlButton(
+            icon: Icons.flip_camera_ios_outlined,
+            onPressed: () =>
+                context.read<ConsultationBloc>().add(SwitchCamera()),
+            color: Colors.white24,
           ),
         ],
       ),
@@ -734,7 +749,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
 
   Widget _buildIncomingCallOverlay(
     BuildContext context,
-    ConsultationRoomState state,
+    ConsultationState state,
   ) {
     return Container(
       color: Colors.black.withOpacity(0.85),
@@ -778,7 +793,7 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
               children: [
                 GestureDetector(
                   onTap: () =>
-                      context.read<ConsultationRoomBloc>().add(RejectCall()),
+                      context.read<ConsultationBloc>().add(RejectCall()),
                   child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: const BoxDecoration(
@@ -794,15 +809,15 @@ class _ConsultationRoomPageState extends State<ConsultationRoomPage> {
                 ),
                 GestureDetector(
                   onTap: () =>
-                      context.read<ConsultationRoomBloc>().add(AcceptCall()),
+                      context.read<ConsultationBloc>().add(AcceptCall()),
                   child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: const BoxDecoration(
                       color: Color(0xFF10B981),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      state.isVideoCall ? Icons.videocam : Icons.phone,
+                    child: const Icon(
+                      Icons.call,
                       color: Colors.white,
                       size: 28,
                     ),
@@ -835,21 +850,16 @@ class _CallControlButton extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        height: isLarge ? 64 : 52,
-        width: isLarge ? 64 : 52,
+        padding: EdgeInsets.all(isLarge ? 18 : 12),
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          boxShadow: [
-            if (isLarge)
-              BoxShadow(
-                color: color.withOpacity(0.4),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-          ],
         ),
-        child: Icon(icon, color: Colors.white, size: isLarge ? 30 : 22),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: isLarge ? 28 : 22,
+        ),
       ),
     );
   }
