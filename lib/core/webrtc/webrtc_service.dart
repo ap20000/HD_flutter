@@ -147,7 +147,6 @@ class WebRTCService {
   Future<void> initializePeerConnection() async {
     print('WebRTCService: Initializing PeerConnection...');
     _isRemoteDescriptionSet = false;
-    _remoteIceCandidateQueue.clear();
 
     // Apply Android-specific audio configuration before starting
     await _configureAndroidAudio();

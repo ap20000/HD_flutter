@@ -221,13 +221,15 @@ class _DashboardBodyState extends State<_DashboardBody> {
           final authorStories = entry.value;
           if (authorStories.isNotEmpty) {
             final firstStory = authorStories.first;
-            grouped.add(GroupedStories(
-              authorId: entry.key,
-              authorName: firstStory.authorName,
-              authorAvatar: firstStory.authorAvatar,
-              authorSpecialty: firstStory.authorSpecialty,
-              stories: authorStories,
-            ));
+            grouped.add(
+              GroupedStories(
+                authorId: entry.key,
+                authorName: firstStory.authorName,
+                authorAvatar: firstStory.authorAvatar,
+                authorSpecialty: firstStory.authorSpecialty,
+                stories: authorStories,
+              ),
+            );
           }
         }
 
@@ -402,7 +404,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           scrollDirection: Axis.horizontal,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: 5,
-                          separatorBuilder: (_, __) => const SizedBox(width: 16),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
                           itemBuilder: (context, index) {
                             return const StoryShimmer();
                           },
@@ -411,7 +414,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
                           itemCount: _groupedStories.length + 1,
-                          separatorBuilder: (_, __) => const SizedBox(width: 16),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
                           itemBuilder: (context, index) {
                             if (index == 0) {
                               return StoryAvatar(
@@ -425,14 +429,19 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                       context: context,
                                       builder: (context) => AlertDialog(
                                         shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20)),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
                                         backgroundColor: isDark
                                             ? AppColors.darkSurface
                                             : Colors.white,
                                         title: Row(
                                           children: [
-                                            const Icon(Icons.info_outline,
-                                                color: AppColors.primary),
+                                            const Icon(
+                                              Icons.info_outline,
+                                              color: AppColors.primary,
+                                            ),
                                             const SizedBox(width: 10),
                                             Text(
                                               'Health Stories',
@@ -457,7 +466,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                         ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.pop(context),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
                                             child: const Text(
                                               'Got it',
                                               style: TextStyle(
@@ -473,7 +483,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                     final result = await Navigator.push<bool>(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => AddStoryPage(user: widget.user),
+                                        builder: (context) =>
+                                            AddStoryPage(user: widget.user),
                                       ),
                                     );
                                     if (result == true) {
@@ -485,8 +496,9 @@ class _DashboardBodyState extends State<_DashboardBody> {
                             }
 
                             final grouped = _groupedStories[index - 1];
-                            final doctorLastName =
-                                grouped.authorName.split(" ").last;
+                            final doctorLastName = grouped.authorName
+                                .split(" ")
+                                .last;
                             return StoryAvatar(
                               text: 'Dr. $doctorLastName',
                               avatarUrl: grouped.authorAvatar,
@@ -501,17 +513,27 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                       initialAuthorIndex: index - 1,
                                       onConsultNow: (doctorId) {
                                         // Start consultation request with this doctor
-                                        context.read<PatientDashboardBloc>().add(
-                                              RequestConsultation(doctorId),
-                                            );
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        context
+                                            .read<PatientDashboardBloc>()
+                                            .add(RequestConsultation(doctorId));
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           SnackBar(
                                             content: Text(
                                               'Starting consultation request with Dr. ${grouped.authorName}...',
                                             ),
                                             behavior: SnackBarBehavior.floating,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            margin: const EdgeInsets.fromLTRB(
+                                              16,
+                                              0,
+                                              16,
+                                              16,
+                                            ),
                                           ),
                                         );
                                         widget.onConsultationsTab();
@@ -1259,7 +1281,6 @@ class _SpecialistCard extends StatelessWidget {
   }
 }
 
-
 class _ArticleCard extends StatelessWidget {
   final bool isDark;
   final Article article;
@@ -1638,14 +1659,16 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
-    
+
     // Filter list based on search query and filter selection
     final filtered = widget.consultations.where((c) {
-      final matchesSearch = c.doctorName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                            c.doctorSpecialty.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesFilter = _filterType == 'all' ||
-                            (_filterType == 'active' && c.status == 'active') ||
-                            (_filterType == 'pending' && c.status == 'pending');
+      final matchesSearch =
+          c.doctorName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          c.doctorSpecialty.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesFilter =
+          _filterType == 'all' ||
+          (_filterType == 'active' && c.status == 'active') ||
+          (_filterType == 'pending' && c.status == 'pending');
       return matchesSearch && matchesFilter;
     }).toList();
 
@@ -1704,7 +1727,10 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
@@ -1791,7 +1817,7 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                     color: AppColors.primary.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
-                  )
+                  ),
                 ]
               : null,
         ),

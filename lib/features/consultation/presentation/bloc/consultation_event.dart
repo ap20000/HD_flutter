@@ -54,8 +54,22 @@ class ToggleCamera extends ConsultationEvent {}
 
 class SwitchCamera extends ConsultationEvent {}
 
-class EndConsultationCall extends ConsultationEvent {}
+class EndConsultationCall extends ConsultationEvent {
+  final bool isRemote;
+  const EndConsultationCall({this.isRemote = false});
+
+  @override
+  List<Object?> get props => [isRemote];
+}
 
 class AcceptCall extends ConsultationEvent {}
 
 class RejectCall extends ConsultationEvent {}
+
+class UpdateCallDuration extends ConsultationEvent {
+  final int duration;
+  const UpdateCallDuration(this.duration);
+
+  @override
+  List<Object?> get props => [duration];
+}

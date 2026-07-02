@@ -13,6 +13,7 @@ class ConsultationState extends Equatable {
   final bool hasIncomingCall;
   final Map<String, dynamic>? pendingOffer;
   final String? error;
+  final int callDuration;
 
   const ConsultationState({
     this.messages = const [],
@@ -26,6 +27,7 @@ class ConsultationState extends Equatable {
     this.hasIncomingCall = false,
     this.pendingOffer,
     this.error,
+    this.callDuration = 0,
   });
 
   ConsultationState copyWith({
@@ -40,6 +42,7 @@ class ConsultationState extends Equatable {
     bool? hasIncomingCall,
     dynamic pendingOffer = _sentinel,
     dynamic error = _sentinel,
+    int? callDuration,
   }) {
     return ConsultationState(
       messages: messages ?? this.messages,
@@ -53,6 +56,7 @@ class ConsultationState extends Equatable {
       hasIncomingCall: hasIncomingCall ?? this.hasIncomingCall,
       pendingOffer: pendingOffer == _sentinel ? this.pendingOffer : (pendingOffer as Map<String, dynamic>?),
       error: error == _sentinel ? this.error : (error as String?),
+      callDuration: callDuration ?? this.callDuration,
     );
   }
 
@@ -69,6 +73,7 @@ class ConsultationState extends Equatable {
         hasIncomingCall,
         pendingOffer,
         error,
+        callDuration,
       ];
 }
 

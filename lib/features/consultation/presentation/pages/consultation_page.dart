@@ -59,6 +59,12 @@ class _ConsultationPageState extends State<ConsultationPage> {
     _initRenderers();
   }
 
+  String _formatDuration(int seconds) {
+    final mins = (seconds ~/ 60).toString();
+    final secs = (seconds % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
   Future<void> _initRenderers() async {
     try {
       print('ConsultationPage: Initializing video renderers...');
@@ -204,7 +210,9 @@ class _ConsultationPageState extends State<ConsultationPage> {
                   ),
                 ),
                 Text(
-                  state.isCallActive ? 'In Call' : 'Active Session',
+                  state.isCallActive 
+                      ? (state.callDuration > 0 ? _formatDuration(state.callDuration) : 'In Call') 
+                      : 'Active Session',
                   style: const TextStyle(
                     fontFamily: AppTypography.fontFamily,
                     fontSize: 11,
@@ -567,6 +575,18 @@ class _ConsultationPageState extends State<ConsultationPage> {
                     color: Colors.white,
                   ),
                 ),
+                if (state.callDuration > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDuration(state.callDuration),
+                    style: const TextStyle(
+                      fontFamily: AppTypography.fontFamily,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -659,7 +679,9 @@ class _ConsultationPageState extends State<ConsultationPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            state.remoteStream != null ? 'Connected' : 'Calling...',
+            state.remoteStream != null 
+                ? (state.callDuration > 0 ? _formatDuration(state.callDuration) : 'Connected')
+                : 'Calling...',
             style: const TextStyle(
               fontFamily: AppTypography.fontFamily,
               fontSize: 16,

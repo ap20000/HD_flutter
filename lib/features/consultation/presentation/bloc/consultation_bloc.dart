@@ -23,6 +23,7 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
   StreamSubscription? _statusSub;
   StreamSubscription? _errorSub;
   StreamSubscription? _iceCandidateSub;
+  Timer? _callTimer;
 
   ConsultationBloc({
     required this.socketService,
@@ -40,12 +41,15 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
     on<EndConsultationCall>(_onEndCall);
     on<AcceptCall>(_onAcceptCall);
     on<RejectCall>(_onRejectCall);
+    on<UpdateCallDuration>((event, emit) {
+      emit(state.copyWith(callDuration: event.duration));
+    });
 
     // 1. Subscribe to Socket events
     _msgSub = socketService.messages.listen((msg) => add(MessageReceived(msg)));
     _sigSub = socketService.signals.listen((sig) => add(HandleCallSignal(sig)));
-    _endSub = socketService.callEnded.listen((_) => add(EndConsultationCall()));
-    _rejectSub = socketService.callRejected.listen((_) => add(EndConsultationCall()));
+    _endSub = socketService.callEnded.listen((_) => add(const EndConsultationCall(isRemote: true)));
+    _rejectSub = socketService.callRejected.listen((_) => add(const EndConsultationCall(isRemote: true)));
 
     // 2. Subscribe to Repository streams to update UI state reactively
     _localStreamSub = consultationRepository.localStreamStream.listen((stream) {
@@ -85,12 +89,29 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
         print('ConsultationBloc: Local ICE candidate gathered. Sending over socket...');
         socketService.sendSignal(_consultationId!, {
           'type': 'candidate',
-          'candidate': candidate.candidate,
-          'sdpMid': candidate.sdpMid,
-          'sdpMLineIndex': candidate.sdpMLineIndex,
+          'signal': {
+            'candidate': {
+              'candidate': candidate.candidate,
+              'sdpMid': candidate.sdpMid,
+              'sdpMLineIndex': candidate.sdpMLineIndex,
+            }
+          }
         });
       }
     });
+  }
+
+  void _startCallTimer() {
+    _callTimer?.cancel();
+    add(const UpdateCallDuration(0));
+    _callTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      add(UpdateCallDuration(timer.tick));
+    });
+  }
+
+  void _stopCallTimer() {
+    _callTimer?.cancel();
+    _callTimer = null;
   }
 
   Future<void> _onJoinConsultation(
@@ -190,6 +211,7 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
       case 'answer':
         print('ConsultationBloc: Answer received. Applying...');
         await consultationRepository.setAnswer(signal);
+        _startCallTimer();
         break;
 
       case 'candidate':
@@ -228,6 +250,7 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
             },
           });
         }
+        _startCallTimer();
         emit(state.copyWith(isCallActive: true));
       },
     );
@@ -267,8 +290,9 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
     EndConsultationCall event,
     Emitter<ConsultationState> emit,
   ) async {
-    print('ConsultationBloc: End call session triggered.');
-    if (_consultationId != null) {
+    print('ConsultationBloc: End call session triggered. (isRemote: ${event.isRemote})');
+    _stopCallTimer();
+    if (_consultationId != null && !event.isRemote) {
       socketService.endCall(_consultationId!);
     }
     await consultationRepository.endCall();
@@ -276,6 +300,7 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
       isCallActive: false,
       localStream: null,
       remoteStream: null,
+      callDuration: 0,
     ));
   }
 
@@ -291,6 +316,7 @@ class ConsultationBloc extends Bloc<ConsultationEvent, ConsultationState> {
     _statusSub?.cancel();
     _errorSub?.cancel();
     _iceCandidateSub?.cancel();
+    _callTimer?.cancel();
     consultationRepository.endCall();
     return super.close();
   }

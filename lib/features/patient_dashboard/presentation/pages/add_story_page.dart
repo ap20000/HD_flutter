@@ -112,14 +112,26 @@ class _AddStoryPageState extends State<AddStoryPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.2),
+                          ),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Column(
                           children: [
-                            Icon(Icons.camera_alt_outlined, color: AppColors.primary, size: 28),
+                            Icon(
+                              Icons.camera_alt_outlined,
+                              color: AppColors.primary,
+                              size: 28,
+                            ),
                             SizedBox(height: 8),
-                            Text('Camera', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text(
+                              'Camera',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -135,14 +147,26 @@ class _AddStoryPageState extends State<AddStoryPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.2),
+                          ),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Column(
                           children: [
-                            Icon(Icons.photo_library_outlined, color: AppColors.primary, size: 28),
+                            Icon(
+                              Icons.photo_library_outlined,
+                              color: AppColors.primary,
+                              size: 28,
+                            ),
                             SizedBox(height: 8),
-                            Text('Gallery', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text(
+                              'Gallery',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -199,7 +223,9 @@ class _AddStoryPageState extends State<AddStoryPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.data['message'] ?? 'Failed to publish story'),
+              content: Text(
+                response.data['message'] ?? 'Failed to publish story',
+              ),
               backgroundColor: AppColors.error,
             ),
           );
@@ -228,7 +254,9 @@ class _AddStoryPageState extends State<AddStoryPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? AppColors.darkBackground
+          : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'Create a Story',
@@ -267,7 +295,7 @@ class _AddStoryPageState extends State<AddStoryPage> {
                           color: Colors.black.withOpacity(0.04),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
-                        )
+                        ),
                       ],
                     ),
                     child: ClipRRect(
@@ -290,7 +318,11 @@ class _AddStoryPageState extends State<AddStoryPage> {
                                     child: const CircleAvatar(
                                       radius: 14,
                                       backgroundColor: Colors.black54,
-                                      child: Icon(Icons.close_rounded, size: 16, color: Colors.white),
+                                      child: Icon(
+                                        Icons.close_rounded,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -302,7 +334,11 @@ class _AddStoryPageState extends State<AddStoryPage> {
                                 const CircleAvatar(
                                   radius: 28,
                                   backgroundColor: AppColors.primarySoft,
-                                  child: Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary, size: 28),
+                                  child: Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    color: AppColors.primary,
+                                    size: 28,
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
@@ -310,13 +346,18 @@ class _AddStoryPageState extends State<AddStoryPage> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white70 : AppColors.textSecondary,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : AppColors.textSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
                                   'Portrait 9:16 recommended',
-                                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
@@ -348,9 +389,16 @@ class _AddStoryPageState extends State<AddStoryPage> {
                 decoration: InputDecoration(
                   hintText: 'e.g., Quick tips for a healthy heart',
                   hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? AppColors.dividerDark
+                          : Colors.grey.shade300,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -383,11 +431,19 @@ class _AddStoryPageState extends State<AddStoryPage> {
                 controller: _contentController,
                 maxLines: 4,
                 decoration: InputDecoration(
-                  hintText: 'Provide brief, helpful information to display on the story screen...',
+                  hintText:
+                      'Provide brief, helpful information to display on the story screen...',
                   hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: isDark ? AppColors.dividerDark : Colors.grey.shade300),
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? AppColors.dividerDark
+                          : Colors.grey.shade300,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -419,12 +475,18 @@ class _AddStoryPageState extends State<AddStoryPage> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.white : (isDark ? Colors.white70 : AppColors.textSecondary),
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark
+                                  ? Colors.white70
+                                  : AppColors.textSecondary),
                       ),
                     ),
                     selected: isSelected,
                     selectedColor: AppColors.primary,
-                    backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+                    backgroundColor: isDark
+                        ? AppColors.darkSurface
+                        : const Color(0xFFF1F5F9),
                     onSelected: (selected) {
                       if (selected) {
                         setState(() {
@@ -435,7 +497,9 @@ class _AddStoryPageState extends State<AddStoryPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                       side: BorderSide(
-                        color: isSelected ? Colors.transparent : Colors.grey.withOpacity(0.2),
+                        color: isSelected
+                            ? Colors.transparent
+                            : Colors.grey.withOpacity(0.2),
                       ),
                     ),
                   );
@@ -451,17 +515,26 @@ class _AddStoryPageState extends State<AddStoryPage> {
                   onPressed: _isSubmitting ? null : _submitStory,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: _isSubmitting
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
                         )
                       : const Text(
                           'Publish Story',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
                         ),
                 ),
               ),
