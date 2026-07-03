@@ -5,8 +5,12 @@ import 'injection_container.dart' as di;
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final sharedPreferences = await SharedPreferences.getInstance();
+  di.sl.registerLazySingleton<SharedPreferences>(() => sharedPreferences);
   await di.init();
   runApp(const MyApp());
 }

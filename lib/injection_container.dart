@@ -41,6 +41,7 @@ Future<void> init() async {
       registerUseCase: sl(),
       verifyOtpUseCase: sl(),
       updateAvatarUseCase: sl(),
+      sharedPreferences: sl(),
     ),
   );
 

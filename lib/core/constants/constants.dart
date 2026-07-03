@@ -1,8 +1,8 @@
 class ApiConstants {
-  static const String baseUrl =
-      'https://mediumseagreen-locust-705726.hostingersite.com';
-
-  // static const String baseUrl = 'http://192.168.110.27:5001';
+  // Use local network IP for physical device testing
+  static const String baseUrl = 'http://192.168.1.81:5001';
+  // static const String baseUrl = 'http://10.0.2.2:5001';
+  // static const String baseUrl = 'https://mediumseagreen-locust-705726.hostingersite.com';
   static const String apiVersion = 'v1';
 
   // Auth Endpoints

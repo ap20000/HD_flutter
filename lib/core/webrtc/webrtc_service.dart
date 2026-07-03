@@ -122,7 +122,14 @@ class WebRTCService {
 
     final Map<String, dynamic> constraints = {
       'audio': true,
-      'video': isVideo,
+      'video': isVideo
+          ? {
+              'facingMode': 'user',
+              'width': {'ideal': 1280},
+              'height': {'ideal': 720},
+              'frameRate': {'ideal': 30},
+            }
+          : false,
     };
 
     try {
@@ -214,6 +221,28 @@ class WebRTCService {
               });
             }
           });
+
+          // Inject user requested stats logging
+          Timer.periodic(const Duration(seconds: 2), (timer) async {
+            if (_peerConnection == null) {
+              timer.cancel();
+              return;
+            }
+            try {
+              final senders = await _peerConnection!.getSenders();
+              for (final sender in senders) {
+                if (sender.track?.kind == 'video') {
+                  final stats = await sender.getStats();
+                  print('--- FLUTTER VIDEO SENDER STATS ---');
+                  for (var stat in stats) {
+                    print(stat.values);
+                  }
+                }
+              }
+            } catch (e) {
+              print('Stats error: $e');
+            }
+          });
         }
       };
 
@@ -253,6 +282,8 @@ class WebRTCService {
     try {
       RTCSessionDescription offer = await _peerConnection!.createOffer();
       print('WebRTCService: Setting local description (Offer)...');
+      print('--- FLUTTER OFFER SDP ---');
+      print(offer.sdp);
       await _peerConnection!.setLocalDescription(offer);
       return offer;
     } catch (e) {
@@ -274,6 +305,8 @@ class WebRTCService {
       RTCSessionDescription answer = await _peerConnection!.createAnswer();
 
       print('WebRTCService: Setting local description (Answer)...');
+      print('--- FLUTTER ANSWER SDP ---');
+      print(answer.sdp);
       await _peerConnection!.setLocalDescription(answer);
       return answer;
     } catch (e) {
@@ -287,6 +320,11 @@ class WebRTCService {
     if (_peerConnection == null) {
       print('WebRTCService: WARNING: setRemoteDescription called when PeerConnection is null.');
       return;
+    }
+
+    if (description.type == 'answer') {
+      print("Current signalingState: ${_peerConnection?.signalingState}");
+      print("Received answer SDP");
     }
 
     print('WebRTCService: Setting remote description (${description.type})...');

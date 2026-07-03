@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_bloc.dart';
+import '../bloc/auth_state.dart';
 import 'login_page.dart';
 
 class SplashPage extends StatefulWidget {
@@ -80,13 +83,24 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
       _pulseController.repeat(reverse: true);
     });
 
-    // 3.2 seconds transition to LoginPage to enjoy the animation flow
-    Timer(const Duration(milliseconds: 3200), _navigateToLogin);
+    // 3.2 seconds transition to next page to enjoy the animation flow
+    Timer(const Duration(milliseconds: 3200), _navigateToNextPage);
   }
 
-  void _navigateToLogin() {
+  void _navigateToNextPage() {
     if (!mounted) return;
-    context.go('/login');
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      if (authState.user.role == 'patient') {
+        context.go('/patient-dashboard', extra: authState.user);
+      } else if (authState.user.role == 'doctor') {
+        context.go('/doctor-dashboard', extra: authState.user);
+      } else {
+        context.go('/login');
+      }
+    } else {
+      context.go('/login');
+    }
   }
 
   @override

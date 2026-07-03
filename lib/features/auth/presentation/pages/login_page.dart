@@ -185,6 +185,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         LoginSubmitted(
           loginId: _loginIdController.text.trim(),
           password: _passwordController.text,
+          rememberMe: _rememberMe,
         ),
       );
     } else {
