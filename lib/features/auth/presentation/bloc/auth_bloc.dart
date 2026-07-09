@@ -5,6 +5,7 @@ import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
 import '../../domain/usecases/verify_otp_usecase.dart'; 
 import '../../domain/usecases/update_avatar_usecase.dart';
+import '../../domain/usecases/update_profile_usecase.dart';
 import '../../data/models/user_model.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -18,6 +19,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final RegisterUseCase registerUseCase;
   final VerifyOtpUseCase verifyOtpUseCase;
   final UpdateAvatarUseCase updateAvatarUseCase;
+  final UpdateProfileUseCase updateProfileUseCase;
   final SharedPreferences sharedPreferences;
 
   static const _cachedUserKey = 'CACHED_USER';
@@ -27,6 +29,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required this.registerUseCase,
     required this.verifyOtpUseCase,
     required this.updateAvatarUseCase,
+    required this.updateProfileUseCase,
     required this.sharedPreferences,
   }) : super(AuthInitial()) {
     on<LoginSubmitted>(_onLoginSubmitted);
@@ -34,6 +37,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<VerifyOtpSubmitted>(_onVerifyOtpSubmitted);
     on<LogoutRequested>(_onLogoutRequested);
     on<UpdateAvatarRequested>(_onUpdateAvatarRequested);
+    on<UpdateProfileRequested>(_onUpdateProfileRequested);
 
     _checkCachedUser();
   }
@@ -128,7 +132,45 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     result.fold(
       (failure) => emit(AuthError(failure.message)),
-      (user) => emit(AuthAuthenticated(user)),
+      (user) {
+        if (user is UserModel) {
+          sharedPreferences.setString(_cachedUserKey, json.encode(user.toJson()));
+        }
+        emit(AuthAuthenticated(user));
+      },
+    );
+  }
+
+  Future<void> _onUpdateProfileRequested(
+    UpdateProfileRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    final result = await updateProfileUseCase(
+      UpdateProfileParams(
+        name: event.name,
+        email: event.email,
+        gender: event.gender,
+        dob: event.dob,
+        address: event.address,
+        bmiHeight: event.bmiHeight,
+        bmiWeight: event.bmiWeight,
+        speciality: event.speciality,
+        qualification: event.qualification,
+        nmcNumber: event.nmcNumber,
+        experience: event.experience,
+        bio: event.bio,
+      ),
+    );
+
+    result.fold(
+      (failure) => emit(AuthError(failure.message)),
+      (user) {
+        if (user is UserModel) {
+          sharedPreferences.setString(_cachedUserKey, json.encode(user.toJson()));
+        }
+        emit(AuthAuthenticated(user));
+      },
     );
   }
 }

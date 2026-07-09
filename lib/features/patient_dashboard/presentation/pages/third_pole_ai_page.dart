@@ -498,7 +498,12 @@ class _ThirdPoleAIChatPageState extends State<ThirdPoleAIChatPage> {
         backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
         elevation: 0,
         centerTitle: true,
-        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
       ),
       body: Column(
         children: [

@@ -1,30 +1,31 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hamro_doctor_mobile/injection_container.dart' as di;
 import 'package:hamro_doctor_mobile/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  setUpAll(() async {
+    // Avoid GetIt duplicate registrations if run repeatedly
+    await di.sl.reset();
+    SharedPreferences.setMockInitialValues({});
+    final sharedPreferences = await SharedPreferences.getInstance();
+    di.sl.registerLazySingleton<SharedPreferences>(() => sharedPreferences);
+    await di.init();
+  });
+
+  testWidgets('App initialization and splash page smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that SplashPage starts loading and displays the progress indicator
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    
+    // Verify that the splash page texts are present
+    expect(find.text('ThirdPole Health'), findsOneWidget);
+    expect(find.text('Your Health, Our Priority'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Advance clock to trigger and clear the navigation timer (3.2 seconds)
+    await tester.pump(const Duration(seconds: 4));
   });
 }

@@ -22,4 +22,19 @@ abstract class AuthRepository {
   });
 
   Future<Either<Failure, User>> updateAvatar({required String base64Image});
+
+  Future<Either<Failure, User>> updateProfile({
+    required String name,
+    required String email,
+    String? gender,
+    String? dob,
+    String? address,
+    double? bmiHeight,
+    double? bmiWeight,
+    String? speciality,
+    String? qualification,
+    String? nmcNumber,
+    int? experience,
+    String? bio,
+  });
 }

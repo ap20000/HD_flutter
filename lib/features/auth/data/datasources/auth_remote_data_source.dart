@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:hamro_doctor_mobile/core/network/dio_client.dart';
 import '../../../../core/constants/constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../models/user_model.dart';
@@ -16,6 +15,20 @@ abstract class AuthRemoteDataSource {
   );
   Future<UserModel> verifyOtp(String phone, String code);
   Future<UserModel> updateAvatar(String base64Image);
+  Future<UserModel> updateProfile({
+    required String name,
+    required String email,
+    String? gender,
+    String? dob,
+    String? address,
+    double? bmiHeight,
+    double? bmiWeight,
+    String? speciality,
+    String? qualification,
+    String? nmcNumber,
+    int? experience,
+    String? bio,
+  });
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -140,6 +153,72 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       } else {
         throw ServerException(
           response.data['message'] ?? 'Failed to update avatar',
+        );
+      }
+    } on DioException catch (e) {
+      throw ServerException(e.response?.data['message'] ?? 'Connection error');
+    }
+  }
+
+  @override
+  Future<UserModel> updateProfile({
+    required String name,
+    required String email,
+    String? gender,
+    String? dob,
+    String? address,
+    double? bmiHeight,
+    double? bmiWeight,
+    String? speciality,
+    String? qualification,
+    String? nmcNumber,
+    int? experience,
+    String? bio,
+  }) async {
+    try {
+      final Map<String, dynamic> data = {
+        'name': name,
+        'email': email,
+      };
+
+      final Map<String, dynamic> profileMap = {};
+      if (gender != null) profileMap['gender'] = gender;
+      if (dob != null) profileMap['dob'] = dob;
+      if (address != null) profileMap['address'] = address;
+
+      final Map<String, dynamic> bmiMap = {};
+      if (bmiHeight != null) bmiMap['height'] = bmiHeight;
+      if (bmiWeight != null) bmiMap['weight'] = bmiWeight;
+      if (bmiMap.isNotEmpty) profileMap['bmi'] = bmiMap;
+
+      if (profileMap.isNotEmpty) {
+        data['profile'] = profileMap;
+      }
+
+      final Map<String, dynamic> doctorMap = {};
+      if (speciality != null) doctorMap['speciality'] = speciality;
+      if (qualification != null) doctorMap['qualification'] = qualification;
+      if (nmcNumber != null) doctorMap['nmcNumber'] = nmcNumber;
+      if (experience != null) doctorMap['experience'] = experience;
+      if (bio != null) doctorMap['bio'] = bio;
+
+      if (doctorMap.isNotEmpty) {
+        data['doctorDetails'] = doctorMap;
+      }
+
+      final response = await dio.put(
+        ApiConstants.updateProfile,
+        data: data,
+      );
+
+      if (response.data['success']) {
+        return UserModel.fromJson(
+          response.data['user'],
+          token: AuthInterceptor.token,
+        );
+      } else {
+        throw ServerException(
+          response.data['message'] ?? 'Failed to update profile',
         );
       }
     } on DioException catch (e) {

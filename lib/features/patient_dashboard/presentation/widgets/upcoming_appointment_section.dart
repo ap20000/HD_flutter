@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/widgets/app_widgets.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../domain/entities/dashboard_data.dart';
 
 class UpcomingAppointmentSection extends StatefulWidget {
-  const UpcomingAppointmentSection({super.key});
+  final Consultation? consultation;
+  final VoidCallback onTap;
+
+  const UpcomingAppointmentSection({
+    super.key,
+    required this.consultation,
+    required this.onTap,
+  });
 
   @override
   State<UpcomingAppointmentSection> createState() =>
@@ -14,46 +22,96 @@ class UpcomingAppointmentSection extends StatefulWidget {
 class _UpcomingAppointmentSectionState
     extends State<UpcomingAppointmentSection> {
   double _scale = 1.0;
-  // TODO: Replace with actual appointment data from bloc/provider
-  bool hasUpcomingAppointment = true;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final consultation = widget.consultation;
+
+    final gradient = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFF0A2E1A), Color(0xFF135029)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFE8F5E9), Color(0xFFF1FBF0)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+
+    final titleColor = isDark ? Colors.white : const Color(0xFF2E7D32);
+
+    // Date parsing
+    DateTime? appointmentDate;
+    String monthShort = 'OCT';
+    String dayStr = '12';
+    String timeStr = '10:30 AM';
+
+    if (consultation != null && consultation.createdAt.isNotEmpty) {
+      appointmentDate = DateTime.tryParse(consultation.createdAt);
+      if (appointmentDate != null) {
+        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+        monthShort = months[appointmentDate.month - 1];
+        dayStr = appointmentDate.day.toString();
+        
+        final hour = appointmentDate.hour;
+        final minute = appointmentDate.minute.toString().padLeft(2, '0');
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+        timeStr = '$displayHour:$minute $period';
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Upcoming Appointment',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.white : AppColors.textPrimary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Upcoming Appointment',
+              style: TextStyle(
+                fontFamily: AppTypography.fontFamily,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? AppColors.white : AppColors.textPrimary,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        hasUpcomingAppointment
+        consultation != null
             ? GestureDetector(
-                onTapDown: (_) => setState(() => _scale = 0.97),
+                onTapDown: (_) => setState(() => _scale = 0.98),
                 onTapUp: (_) => setState(() => _scale = 1.0),
                 onTapCancel: () => setState(() => _scale = 1.0),
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  // Navigate to appointment details
+                  widget.onTap();
                 },
                 child: AnimatedScale(
                   scale: _scale,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOutBack,
-                  child: AppCard(
-                    padding: const EdgeInsets.all(14),
-                    borderRadius: 20,
-                    border: Border.all(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.08)
-                          : AppColors.divider,
-                      width: 1,
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.easeOut,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: gradient,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isDark 
+                            ? Colors.white.withOpacity(0.08) 
+                            : const Color(0xFFC8E6C9),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.25 : 0.03),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
@@ -64,15 +122,15 @@ class _UpcomingAppointmentSectionState
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                AppColors.primary.withOpacity(0.15),
-                                AppColors.primary.withOpacity(0.05),
+                                AppColors.success.withOpacity(0.2),
+                                AppColors.success.withOpacity(0.05),
                               ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: AppColors.primary.withOpacity(0.2),
+                              color: AppColors.success.withOpacity(0.3),
                               width: 1,
                             ),
                           ),
@@ -80,20 +138,20 @@ class _UpcomingAppointmentSectionState
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'OCT',
+                                monthShort,
                                 style: TextStyle(
                                   fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary.withOpacity(0.7),
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor.withOpacity(0.8),
                                   letterSpacing: 0.5,
                                 ),
                               ),
                               Text(
-                                '12',
+                                dayStr,
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w900,
-                                  color: AppColors.primary,
+                                  color: titleColor,
                                   height: 1.0,
                                 ),
                               ),
@@ -107,13 +165,12 @@ class _UpcomingAppointmentSectionState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Physical Checkup',
+                                'Dr. ${consultation.doctorName}',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark
-                                      ? AppColors.white
-                                      : AppColors.textPrimary,
+                                  fontFamily: AppTypography.fontFamily,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? AppColors.white : AppColors.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 5),
@@ -128,35 +185,30 @@ class _UpcomingAppointmentSectionState
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '10:30 AM',
+                                    timeStr,
                                     style: TextStyle(
+                                      fontFamily: AppTypography.fontFamily,
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w600,
                                       color: isDark
                                           ? AppColors.textOnDarkSecondary
                                           : AppColors.textSecondary,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    Icons.location_on_rounded,
-                                    size: 13,
-                                    color: isDark
-                                        ? AppColors.textOnDarkSecondary
-                                        : AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: (consultation.status == 'active' ? Colors.green : Colors.orange).withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
                                     child: Text(
-                                      'Hamro Clinic',
+                                      consultation.status.toUpperCase(),
                                       style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: isDark
-                                            ? AppColors.textOnDarkSecondary
-                                            : AppColors.textSecondary,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: consultation.status == 'active' ? Colors.green : Colors.orange,
                                       ),
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
@@ -167,9 +219,7 @@ class _UpcomingAppointmentSectionState
                         const SizedBox(width: 8),
                         Icon(
                           Icons.arrow_forward_ios_rounded,
-                          color: isDark
-                              ? Colors.white.withOpacity(0.3)
-                              : AppColors.textTertiary,
+                          color: isDark ? Colors.white38 : Colors.black26,
                           size: 16,
                         ),
                       ],
@@ -186,12 +236,13 @@ class _UpcomingAppointmentSectionState
                 decoration: BoxDecoration(
                   color: isDark
                       ? Colors.white.withOpacity(0.04)
-                      : Colors.grey.withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(16),
+                      : Colors.grey.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: isDark
                         ? Colors.white.withOpacity(0.08)
-                        : Colors.black.withOpacity(0.08),
+                        : Colors.black.withOpacity(0.05),
+                    width: 1.5,
                   ),
                 ),
                 child: Column(
@@ -205,21 +256,24 @@ class _UpcomingAppointmentSectionState
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'No upcoming appointments',
+                      'No scheduled appointments today',
                       style: TextStyle(
+                        fontFamily: AppTypography.fontFamily,
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: isDark ? AppColors.white : AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Book an appointment with a doctor to get started',
+                      'Book an appointment or start a live consultation.',
                       style: TextStyle(
+                        fontFamily: AppTypography.fontFamily,
                         fontSize: 12,
                         color: isDark
                             ? AppColors.textOnDarkSecondary
                             : AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
                     ),

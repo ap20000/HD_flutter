@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,12 +17,31 @@ import '../bloc/patient_dashboard_event.dart';
 import '../bloc/patient_dashboard_state.dart';
 import '../widgets/premium_bottom_nav.dart';
 import '../../../consultation/presentation/pages/consultation_page.dart';
-import 'book_appointment_page.dart';
 import 'third_pole_ai_page.dart';
 import 'story_viewer_page.dart';
 import 'posts_page.dart';
 import 'add_story_page.dart';
 import '../widgets/story_avatar.dart';
+import '../widgets/bmi_health_card.dart';
+import '../widgets/dashboard_search_bar.dart';
+import '../widgets/services_carousel.dart';
+import '../widgets/consultation_banner_card.dart';
+import '../widgets/specialist_card.dart';
+import '../widgets/article_card.dart';
+import '../widgets/upcoming_appointment_section.dart';
+
+Uint8List? _getAvatarBytes(String? base64Str) {
+  if (base64Str == null || base64Str.isEmpty) return null;
+  try {
+    String cleaned = base64Str;
+    if (base64Str.contains(',')) {
+      cleaned = base64Str.split(',').last;
+    }
+    return base64Decode(cleaned);
+  } catch (e) {
+    return null;
+  }
+}
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -35,6 +56,50 @@ class PatientDashboardPage extends StatefulWidget {
 
 class _PatientDashboardPageState extends State<PatientDashboardPage> {
   int _selectedIndex = 0;
+
+  void _showAIChatBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.darkBackground
+                : AppColors.background,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  child: ThirdPoleAIChatPage(user: widget.user),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,18 +117,22 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
           body: BlocListener<PatientDashboardBloc, PatientDashboardState>(
             listener: (context, state) {
               if (state is PatientDashboardLoaded) {
-                // Check if any consultation was just requested and we're notified
                 final requested = state.consultations
                     .where((c) => c.status == 'pending')
                     .toList();
                 if (requested.isNotEmpty && _selectedIndex != 1) {
-                  // Optional: Automatically switch to consultations tab
-                  // setState(() => _selectedIndex = 1);
+                  // Optional: Auto switch
                 }
               }
             },
             child: SafeArea(child: _buildBody()),
           ),
+          floatingActionButton: _selectedIndex == 0
+              ? _FloatingAIChatWidget(
+                  user: widget.user,
+                  showChatCallback: _showAIChatBottomSheet,
+                )
+              : null,
           bottomNavigationBar: PremiumBottomNav(
             selectedIndex: _selectedIndex,
             onTap: (index) {
@@ -94,8 +163,8 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
               return _DashboardBody(
                 user: widget.user,
                 state: state,
-                onProfileTap: () => setState(() => _selectedIndex = 4),
-                onArticlesTab: () => setState(() => _selectedIndex = 3),
+                onProfileTap: () => setState(() => _selectedIndex = 3),
+                onArticlesTab: () => setState(() => _selectedIndex = 2),
                 onConsultationsTab: () => setState(() => _selectedIndex = 1),
               );
             }
@@ -140,10 +209,8 @@ class _PatientDashboardPageState extends State<PatientDashboardPage> {
           },
         );
       case 2:
-        return ThirdPoleAIChatPage(user: widget.user);
-      case 3:
         return PostsPage(user: widget.user);
-      case 4:
+      case 3:
         return ProfilePage(user: widget.user);
       default:
         return const SizedBox();
@@ -187,9 +254,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
       .where((c) => c.status == 'pending' || c.status == 'active')
       .length;
 
-  List<String> get _upcomingAppointments => widget.state.consultations
+  List<Consultation> get _upcomingAppointments => widget.state.consultations
       .where((c) => c.status == 'active' || c.status == 'pending')
-      .map((c) => '${c.doctorName} – ${c.doctorSpecialty}')
       .toList();
 
   @override
@@ -210,7 +276,6 @@ class _DashboardBodyState extends State<_DashboardBody> {
         final List storiesJson = response.data['stories'] ?? [];
         final stories = storiesJson.map((e) => Story.fromJson(e)).toList();
 
-        // Group stories by author
         final Map<String, List<Story>> authorGroups = {};
         for (var story in stories) {
           authorGroups.putIfAbsent(story.authorId, () => []).add(story);
@@ -333,299 +398,456 @@ class _DashboardBodyState extends State<_DashboardBody> {
           parent: BouncingScrollPhysics(),
         ),
         slivers: [
-          SliverAppBar(
-            backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
-            elevation: 0,
-            pinned: true,
-            leadingWidth: 42,
-            leading: Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.bolt, color: Colors.white, size: 20),
-              ),
-            ),
-            title: Text(
-              'Hamro Doctor',
-              style: TextStyle(
-                color: textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                fontFamily: AppTypography.fontFamily,
-              ),
-            ),
-            actions: [
-              IconButton(
-                onPressed: () => _onNotificationsTap(context),
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      Icons.notifications_none_outlined,
-                      color: textPrimary,
-                      size: 26,
-                    ),
-                    if (_unreadNotifications > 0)
-                      Positioned(
-                        right: 2,
-                        top: 2,
-                        child: CircleAvatar(
-                          radius: 4,
-                          backgroundColor: AppColors.error,
-                        ),
-                      ),
-                  ],
-                ),
-                tooltip: 'Notifications',
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
+
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _buildWelcomeHeader(
-                  context,
-                  widget.user.name,
-                  textPrimary,
-                  textSecondary,
+                _AnimatedEntry(
+                  index: 0,
+                  child: _buildWelcomeHeader(
+                    context,
+                    widget.user.name,
+                    textPrimary,
+                    textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 16),
-                _SearchBar(isDark: isDark, onTap: () => _onSearchTap(context)),
+                _AnimatedEntry(
+                  index: 1,
+                  child: DashboardSearchBar(onTap: () => _onSearchTap(context)),
+                ),
                 const SizedBox(height: 20),
-                SizedBox(
-                  height: 100,
-                  child: _isLoadingStories
-                      ? ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: 5,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 16),
-                          itemBuilder: (context, index) {
-                            return const StoryShimmer();
-                          },
-                        )
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: _groupedStories.length + 1,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 16),
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              return StoryAvatar(
-                                text: 'Your Story',
-                                avatarUrl: widget.user.avatar,
-                                isYourStory: true,
-                                onTap: () async {
-                                  HapticFeedback.lightImpact();
-                                  if (widget.user.role == 'patient') {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            20,
+                _AnimatedEntry(
+                  index: 2,
+                  child: SizedBox(
+                    height: 100,
+                    child: _isLoadingStories
+                        ? ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: 5,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 16),
+                            itemBuilder: (context, index) {
+                              return const StoryShimmer();
+                            },
+                          )
+                        : ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _groupedStories.length + 1,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 16),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return StoryAvatar(
+                                  text: 'Your Story',
+                                  avatarUrl: widget.user.avatar,
+                                  isYourStory: true,
+                                  onTap: () async {
+                                    HapticFeedback.lightImpact();
+                                    if (widget.user.role == 'patient') {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20),
                                           ),
-                                        ),
-                                        backgroundColor: isDark
-                                            ? AppColors.darkSurface
-                                            : Colors.white,
-                                        title: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.info_outline,
-                                              color: AppColors.primary,
+                                          backgroundColor: isDark
+                                              ? AppColors.darkSurface
+                                              : Colors.white,
+                                          title: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.info_outline,
+                                                color: AppColors.primary,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                'Health Stories',
+                                                style: TextStyle(
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : AppColors.textPrimary,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          content: Text(
+                                            'Only verified medical specialists can post health stories. Feel free to browse active stories from our doctors!',
+                                            style: TextStyle(
+                                              color: isDark
+                                                  ? Colors.white70
+                                                  : AppColors.textSecondary,
+                                              fontSize: 14,
+                                              height: 1.4,
                                             ),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              'Health Stories',
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.white
-                                                    : AppColors.textPrimary,
-                                                fontWeight: FontWeight.bold,
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: const Text(
+                                                'Got it',
+                                                style: TextStyle(
+                                                  color: AppColors.primary,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                        content: Text(
-                                          'Only verified medical specialists can post health stories. Feel free to browse active stories from our doctors!',
-                                          style: TextStyle(
-                                            color: isDark
-                                                ? Colors.white70
-                                                : AppColors.textSecondary,
-                                            fontSize: 14,
-                                            height: 1.4,
-                                          ),
+                                      );
+                                    } else {
+                                      final result = await Navigator.push<bool>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              AddStoryPage(user: widget.user),
                                         ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                            child: const Text(
-                                              'Got it',
-                                              style: TextStyle(
-                                                color: AppColors.primary,
-                                                fontWeight: FontWeight.bold,
+                                      );
+                                      if (result == true) {
+                                        _fetchStories();
+                                      }
+                                    }
+                                  },
+                                );
+                              }
+
+                              final grouped = _groupedStories[index - 1];
+                              final doctorLastName = grouped.authorName
+                                  .split(" ")
+                                  .last;
+                              return StoryAvatar(
+                                text: 'Dr. $doctorLastName',
+                                avatarUrl: grouped.authorAvatar,
+                                hasStories: true,
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => StoryViewerPage(
+                                        groupedStoriesList: _groupedStories,
+                                        initialAuthorIndex: index - 1,
+                                        onConsultNow: (doctorId) {
+                                          context
+                                              .read<PatientDashboardBloc>()
+                                              .add(RequestConsultation(doctorId));
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Starting consultation request with Dr. ${grouped.authorName}...',
+                                              ),
+                                              behavior: SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              margin: const EdgeInsets.fromLTRB(
+                                                16,
+                                                0,
+                                                16,
+                                                16,
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                          );
+                                          widget.onConsultationsTab();
+                                        },
                                       ),
-                                    );
-                                  } else {
-                                    final result = await Navigator.push<bool>(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            AddStoryPage(user: widget.user),
-                                      ),
-                                    );
-                                    if (result == true) {
-                                      _fetchStories();
-                                    }
-                                  }
+                                    ),
+                                  );
                                 },
                               );
-                            }
-
-                            final grouped = _groupedStories[index - 1];
-                            final doctorLastName = grouped.authorName
-                                .split(" ")
-                                .last;
-                            return StoryAvatar(
-                              text: 'Dr. $doctorLastName',
-                              avatarUrl: grouped.authorAvatar,
-                              hasStories: true,
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => StoryViewerPage(
-                                      groupedStoriesList: _groupedStories,
-                                      initialAuthorIndex: index - 1,
-                                      onConsultNow: (doctorId) {
-                                        // Start consultation request with this doctor
-                                        context
-                                            .read<PatientDashboardBloc>()
-                                            .add(RequestConsultation(doctorId));
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Starting consultation request with Dr. ${grouped.authorName}...',
-                                            ),
-                                            behavior: SnackBarBehavior.floating,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            margin: const EdgeInsets.fromLTRB(
-                                              16,
-                                              0,
-                                              16,
-                                              16,
-                                            ),
-                                          ),
-                                        );
-                                        widget.onConsultationsTab();
-                                      },
-                                    ),
-                                  ),
-                                );
-                              },
+                            },
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _AnimatedEntry(
+                  index: 3,
+                  child: BmiHealthCard(
+                    bmi: widget.state.latestRecord?.bmi ?? 22.86,
+                    weight: widget.state.latestRecord?.weight ?? 70.0,
+                    height: widget.state.latestRecord?.height ?? 1.75,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
+                  index: 4,
+                  child: ConsultationBannerCard(onTap: () => _onConsultNow(context)),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
+                  index: 5,
+                  child: _buildAIChatCard(context, isDark, textPrimary, textSecondary),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
+                  index: 6,
+                  child: _SectionTitle(
+                    title: 'Our Services',
+                    textColor: textPrimary,
+                    onSeeAll: () {},
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _AnimatedEntry(
+                  index: 7,
+                  child: ServicesCarousel(
+                    services: _healthServices,
+                    onTap: (s) => _onServiceTap(context, s),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
+                  index: 8,
+                  child: UpcomingAppointmentSection(
+                    consultation: _upcomingAppointments.isNotEmpty
+                        ? _upcomingAppointments.first
+                        : null,
+                    onTap: () => _onAppointmentTap(context),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
+                  index: 9,
+                  child: _SectionTitle(
+                    title: 'Top Specialists',
+                    textColor: textPrimary,
+                    onSeeAll: () => _onConsultNow(context),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _AnimatedEntry(
+                  index: 10,
+                  child: SizedBox(
+                    height: 195,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: widget.state.doctors.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 16),
+                      itemBuilder: (context, index) {
+                        final doctor = widget.state.doctors[index];
+                        return SpecialistCard(
+                          name: doctor.name,
+                          specialty: doctor.specialty,
+                          onTap: () {
+                            context.read<PatientDashboardBloc>().add(
+                              RequestConsultation(doctor.id),
+                            );
+                            widget.onConsultationsTab();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
+                  index: 11,
+                  child: _SectionTitle(
+                    title: 'Health Articles',
+                    textColor: textPrimary,
+                    onSeeAll: widget.onArticlesTab,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _AnimatedEntry(
+                  index: 12,
+                  child: widget.state.articles.isEmpty
+                      ? _EmptyArticlesPlaceholder(isDark: isDark)
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: widget.state.articles.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, idx) {
+                            final article = widget.state.articles[idx];
+                            return ArticleCard(
+                              article: article,
+                              onTap: () => _onArticleTap(context, article),
                             );
                           },
                         ),
                 ),
-                const SizedBox(height: 20),
-                _ConsultationCard(onTap: () => _onConsultNow(context)),
-                const SizedBox(height: 24),
-                _SectionTitle(
-                  title: 'Our Services',
-                  textColor: textPrimary,
-                  onSeeAll: () {},
-                ),
-                const SizedBox(height: 12),
-                _ServicesCarousel(
-                  isDark: isDark,
-                  services: _healthServices,
-                  onTap: (s) => _onServiceTap(context, s),
-                ),
-                const SizedBox(height: 24),
-                _UpcomingAppointmentCard(
-                  isDark: isDark,
-                  appointment: _upcomingAppointments.isNotEmpty
-                      ? _upcomingAppointments.first
-                      : null,
-                  onTap: () => _onAppointmentTap(context),
-                ),
-                const SizedBox(height: 24),
-                _SectionTitle(
-                  title: 'Top Specialists',
-                  textColor: textPrimary,
-                  onSeeAll: () => _onConsultNow(context),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 195,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: widget.state.doctors.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      final doctor = widget.state.doctors[index];
-                      return _SpecialistCard(
-                        isDark: isDark,
-                        name: doctor.name,
-                        specialty: doctor.specialty,
-                        onTap: () {
-                          context.read<PatientDashboardBloc>().add(
-                            RequestConsultation(doctor.id),
-                          );
-                          widget.onConsultationsTab();
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _SectionTitle(
-                  title: 'Health Articles',
-                  textColor: textPrimary,
-                  onSeeAll: widget.onArticlesTab,
-                ),
-                const SizedBox(height: 12),
-                if (widget.state.articles.isEmpty)
-                  _EmptyArticlesPlaceholder(isDark: isDark)
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: widget.state.articles.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, idx) {
-                      final article = widget.state.articles[idx];
-                      return _ArticleCard(
-                        isDark: isDark,
-                        article: article,
-                        onTap: () => _onArticleTap(context, article),
-                      );
-                    },
-                  ),
                 const SizedBox(height: 32),
               ]),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAIChatBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.darkBackground
+                : AppColors.background,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  child: ThirdPoleAIChatPage(user: widget.user),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAIChatCard(
+    BuildContext context,
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [
+                  AppColors.primary.withOpacity(0.15),
+                  AppColors.darkSurface,
+                ]
+              : [
+                  AppColors.primary.withOpacity(0.08),
+                  Colors.white,
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(isDark ? 0.3 : 0.15),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(isDark ? 0.05 : 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            _showAIChatBottomSheet(context);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.smart_toy_rounded,
+                    color: AppColors.primary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'ThirdPole AI Assistant',
+                            style: TextStyle(
+                              fontFamily: AppTypography.fontFamily,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.bmiHealthy.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'LIVE',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.bmiHealthy,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Describe symptoms, find matching doctors, and ask health questions.',
+                        style: TextStyle(
+                          fontFamily: AppTypography.fontFamily,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: isDark ? Colors.white54 : Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -636,30 +858,148 @@ class _DashboardBodyState extends State<_DashboardBody> {
     Color textPrimary,
     Color textSecondary,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final avatarBytes = _getAvatarBytes(widget.user.avatar);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'THIRDPOLE HEALTH',
+                style: TextStyle(
+                  fontFamily: AppTypography.fontFamily,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text(
+                    'Namaste, ${userName.split(" ").first}!',
+                    style: AppTypography.titleLarge.copyWith(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 24,
+                      color: textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text('👋', style: TextStyle(fontSize: 22)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'How can we help you today?',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Namaste, ${userName.split(" ").first}!',
-              style: AppTypography.titleLarge.copyWith(
-                fontWeight: FontWeight.w800,
-                fontSize: 24,
-                color: textPrimary,
+            Container(
+              height: 44,
+              width: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? Colors.white.withOpacity(0.06) : AppColors.primarySoft.withOpacity(0.4),
+              ),
+              child: Center(
+                child: IconButton(
+                  onPressed: () => _onNotificationsTap(context),
+                  padding: EdgeInsets.zero,
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        Icons.notifications_none_outlined,
+                        color: textPrimary,
+                        size: 24,
+                      ),
+                      if (_unreadNotifications > 0)
+                        Positioned(
+                          right: 1,
+                          top: 1,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  tooltip: 'Notifications',
+                ),
               ),
             ),
-            const SizedBox(width: 4),
-            const Text('👋', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: widget.onProfileTap,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.2),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 22,
+                      backgroundColor: AppColors.primarySoft,
+                      backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes) : null,
+                      child: avatarBytes == null
+                          ? const Icon(
+                              Icons.person,
+                              color: AppColors.primary,
+                              size: 22,
+                            )
+                          : null,
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? AppColors.darkBackground : Colors.white,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'How can we help you today?',
-          style: AppTypography.bodyMedium.copyWith(
-            color: textSecondary,
-            fontSize: 15,
-          ),
         ),
       ],
     );
@@ -667,61 +1007,6 @@ class _DashboardBodyState extends State<_DashboardBody> {
 }
 
 // ── Home section widgets ──────────────────────────────────────────────────────
-
-class _SearchBar extends StatelessWidget {
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _SearchBar({required this.isDark, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Search doctors, hospitals, or services...',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                color: isDark ? AppColors.textOnDarkSecondary : Colors.black45,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Search doctors, hospitals, or services...',
-                  style: TextStyle(
-                    color: isDark
-                        ? AppColors.textOnDarkSecondary
-                        : Colors.black45,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _SectionTitle extends StatelessWidget {
   final String title;
@@ -770,630 +1055,6 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ServicesCarousel extends StatelessWidget {
-  final bool isDark;
-  final List<String> services;
-  final void Function(String) onTap;
-
-  const _ServicesCarousel({
-    required this.isDark,
-    required this.services,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> serviceDetails = [
-      {
-        'name': 'General',
-        'icon': Icons.medical_services_outlined,
-        'color': const Color(0xFFE3F2FD),
-        'iconColor': const Color(0xFF1976D2),
-      },
-      {
-        'name': 'Cardiology',
-        'icon': Icons.favorite_outline,
-        'color': const Color(0xFFFFEBEE),
-        'iconColor': const Color(0xFFD32F2F),
-      },
-      {
-        'name': 'Genetics',
-        'icon': Icons.biotech_outlined,
-        'color': const Color(0xFFF3E5F5),
-        'iconColor': const Color(0xFF7B1FA2),
-      },
-      {
-        'name': 'Diagnostic',
-        'icon': Icons.analytics_outlined,
-        'color': const Color(0xFFE8F5E9),
-        'iconColor': const Color(0xFF388E3C),
-      },
-    ];
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: serviceDetails.map((service) {
-        return GestureDetector(
-          onTap: () => onTap(service['name']),
-          child: Column(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : service['color'],
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  service['icon'],
-                  color: isDark ? Colors.white : service['iconColor'],
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                service['name'],
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? AppColors.white : AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _ConsultationCard extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _ConsultationCard({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Consult with a Doctor',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE3F2FD).withOpacity(0.5),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2196F3),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Live Consultation',
-                          style: TextStyle(
-                            color: Color(0xFF2196F3),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Consult with a\nDoctor',
-                      style: TextStyle(
-                        color: Color(0xFF1A1A1A),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 20,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Connect instantly with\nverified specialists available\n24/7.',
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Consult Now',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                top: 0,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
-                  ),
-                  child: Image.network(
-                    'https://img.freepik.com/free-photo/smiling-female-doctor-white-coat-standing-with-clipboard-hand_231208-12965.jpg?t=st=1718712000~exp=1718715600~hmac=1234567890abcdef', // Mock image
-                    fit: BoxFit.cover,
-                    width: 150,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 150,
-                      color: Colors.grey.withOpacity(0.1),
-                      child: const Icon(
-                        Icons.person,
-                        size: 80,
-                        color: Colors.blueGrey,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _UpcomingAppointmentCard extends StatelessWidget {
-  final bool isDark;
-  final String? appointment;
-  final VoidCallback onTap;
-
-  const _UpcomingAppointmentCard({
-    required this.isDark,
-    required this.appointment,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F8E9).withOpacity(0.5),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.calendar_today_outlined,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Upcoming Appointment',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF2E7D32),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    appointment ?? 'No upcoming appointments',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward, size: 18, color: Colors.black26),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PackageCard extends StatelessWidget {
-  final bool isDark;
-  final int index;
-
-  const _PackageCard({required this.isDark, required this.index});
-
-  @override
-  Widget build(BuildContext context) {
-    final displayTitle = index == 0
-        ? 'Full Body Checkup'
-        : 'Heart Health Package';
-    final displayPrice = index == 0 ? '4,500' : '3,200';
-    final displayOldPrice = index == 0 ? '6,000' : null;
-    final count = index == 0 ? 64 : 12;
-
-    return Container(
-      width: 200,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                ),
-                child: Center(
-                  child: Icon(
-                    index == 0 ? Icons.person : Icons.favorite,
-                    size: 60,
-                    color: Colors.grey.withOpacity(0.3),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '$count Tests Included',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: isDark ? AppColors.white : AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      'Rs. $displayPrice',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (displayOldPrice != null) ...[
-                      const SizedBox(width: 8),
-                      Text(
-                        'Rs. $displayOldPrice',
-                        style: const TextStyle(
-                          decoration: TextDecoration.lineThrough,
-                          color: Colors.black26,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: AppColors.primary.withOpacity(0.5),
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'Book Package',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpecialistCard extends StatelessWidget {
-  final bool isDark;
-  final String name;
-  final String specialty;
-  final VoidCallback onTap;
-
-  const _SpecialistCard({
-    required this.isDark,
-    required this.name,
-    required this.specialty,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 150,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : AppColors.border,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary, width: 2),
-              ),
-              child: CircleAvatar(
-                radius: 26,
-                backgroundColor: AppColors.primarySoft,
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'D',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: isDark ? AppColors.white : AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              specialty,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDark
-                    ? AppColors.textOnDarkSecondary
-                    : AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Text(
-                  'Consult Now',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ArticleCard extends StatelessWidget {
-  final bool isDark;
-  final Article article;
-  final VoidCallback onTap;
-
-  const _ArticleCard({
-    required this.isDark,
-    required this.article,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  color: Colors.grey.withOpacity(0.1),
-                  child: const Icon(Icons.image_outlined, color: Colors.grey),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Heart Care',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.access_time,
-                          size: 10,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          '5 min read',
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      article.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: isDark ? AppColors.white : AppColors.textPrimary,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.trending_up,
-                          size: 12,
-                          color: Colors.green,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Trending',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Icon(
-                          Icons.bookmark_border,
-                          size: 18,
-                          color: Colors.black45,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1525,117 +1186,7 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-// ── Empty feature page ────────────────────────────────────────────────────────
-
-class _EmptyFeaturePage extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final String description;
-  final bool isDark;
-
-  const _EmptyFeaturePage({
-    required this.title,
-    required this.icon,
-    required this.description,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: isDark
-          ? AppColors.darkBackground
-          : AppColors.surfacePearl,
-      appBar: AppBar(
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.white : AppColors.textPrimary,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        systemOverlayStyle: isDark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 56, color: AppColors.primary),
-              ),
-              const SizedBox(height: 28),
-              Text(
-                '$title Coming Soon',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? AppColors.white : AppColors.textPrimary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.6,
-                  color: isDark
-                      ? AppColors.textOnDarkSecondary
-                      : AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.notification_important_outlined,
-                      size: 20,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'We\'re working hard to bring this feature to you.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ── Consultations Page ────────────────────────────────────────────────────────
 
 class _ConsultationsPage extends StatefulWidget {
   final bool isDark;
@@ -1660,7 +1211,6 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
 
-    // Filter list based on search query and filter selection
     final filtered = widget.consultations.where((c) {
       final matchesSearch =
           c.doctorName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -1681,8 +1231,10 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
           'Consultations',
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w900,
             color: isDark ? AppColors.white : AppColors.textPrimary,
+            fontFamily: AppTypography.fontFamily,
+            letterSpacing: -0.3,
           ),
         ),
         backgroundColor: Colors.transparent,
@@ -1690,102 +1242,152 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Search Field
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: TextField(
-              onChanged: (val) {
-                setState(() {
-                  _searchQuery = val;
-                });
-              },
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87,
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search consultations...',
-                hintStyle: TextStyle(
-                  color: isDark ? Colors.white38 : Colors.black38,
-                ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  size: 20,
-                  color: isDark ? Colors.white54 : Colors.black45,
-                ),
-                filled: true,
-                fillColor: isDark ? AppColors.darkSurface : Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.15)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(
-                    color: AppColors.primary,
-                    width: 1.5,
+          _buildAmbientGlows(isDark),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.25 : 0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    onChanged: (val) {
+                      setState(() {
+                        _searchQuery = val;
+                      });
+                    },
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 14,
+                      fontFamily: AppTypography.fontFamily,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search consultations...',
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.white30 : Colors.black38,
+                        fontSize: 13,
+                        fontFamily: AppTypography.fontFamily,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                      ),
+                      filled: true,
+                      fillColor: isDark ? AppColors.darkSurface : Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6),
+                          width: 1.5,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                          width: 2.0,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
-            ),
-          ),
-
-          // Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                _buildFilterChip('all', 'All'),
-                const SizedBox(width: 8),
-                _buildFilterChip('active', 'Ongoing'),
-                const SizedBox(width: 8),
-                _buildFilterChip('pending', 'Pending'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // List or Empty State
-          Expanded(
-            child: filtered.isEmpty
-                ? _buildEmptyState()
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final consultation = filtered[index];
-                      return _FullConsultationCard(
-                        isDark: isDark,
-                        consultation: consultation,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ConsultationPage(
-                                consultationId: consultation.id,
-                                currentUserId: widget.currentUserId,
-                                otherUserName: consultation.doctorName,
-                                isDoctor: false,
-                                initialPrescription: consultation.prescription,
-                              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    _buildFilterChip('all', 'All'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('active', 'Ongoing'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('pending', 'Pending'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: filtered.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final consultation = filtered[index];
+                          return _AnimatedEntry(
+                            index: index,
+                            child: _FullConsultationCard(
+                              isDark: isDark,
+                              consultation: consultation,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ConsultationPage(
+                                      consultationId: consultation.id,
+                                      currentUserId: widget.currentUserId,
+                                      otherUserName: consultation.doctorName,
+                                      isDoctor: false,
+                                      initialPrescription: consultation.prescription,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAmbientGlows(bool isDark) {
+    final primaryColor = isDark ? AppColors.darkPrimary : AppColors.primary;
+    final accentColor = isDark ? AppColors.darkAccent : AppColors.secondary;
+    return Stack(
+      children: [
+        Positioned(
+          top: -100,
+          right: -100,
+          child: Container(
+            width: 280,
+            height: 280,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: primaryColor.withOpacity(isDark ? 0.06 : 0.03),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -150,
+          left: -150,
+          child: Container(
+            width: 320,
+            height: 320,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: accentColor.withOpacity(isDark ? 0.05 : 0.02),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1799,27 +1401,36 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
           _filterType = type;
         });
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primary
               : (isDark ? AppColors.darkSurface : Colors.white),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected
                 ? AppColors.primary
-                : Colors.grey.withOpacity(isDark ? 0.08 : 0.2),
+                : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFEEF2F6)),
+            width: 1.5,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+                    color: AppColors.primary.withOpacity(isDark ? 0.45 : 0.25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ]
-              : null,
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.15 : 0.02),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Text(
           label,
@@ -1829,6 +1440,7 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                 : (isDark ? Colors.white70 : Colors.black87),
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            fontFamily: AppTypography.fontFamily,
           ),
         ),
       ),
@@ -1852,6 +1464,7 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: widget.isDark ? Colors.white54 : Colors.black54,
+              fontFamily: AppTypography.fontFamily,
             ),
           ),
         ],
@@ -1860,7 +1473,7 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
   }
 }
 
-class _FullConsultationCard extends StatelessWidget {
+class _FullConsultationCard extends StatefulWidget {
   final bool isDark;
   final Consultation consultation;
   final VoidCallback onTap;
@@ -1872,123 +1485,437 @@ class _FullConsultationCard extends StatelessWidget {
   });
 
   @override
+  State<_FullConsultationCard> createState() => _FullConsultationCardState();
+}
+
+class _FullConsultationCardState extends State<_FullConsultationCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 80),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final statusColor = consultation.status == 'active'
-        ? Colors.green
-        : (consultation.status == 'pending' ? Colors.orange : Colors.grey);
+    final isDark = widget.isDark;
+    final statusColor = widget.consultation.status == 'active'
+        ? const Color(0xFF10B981) // emerald green
+        : (widget.consultation.status == 'pending' ? const Color(0xFFF59E0B) : Colors.grey);
 
-    final bool isAccepted = consultation.status == 'active';
+    final bool isAccepted = widget.consultation.status == 'active';
 
-    return Opacity(
-      opacity: isAccepted ? 1.0 : 0.8,
-      child: InkWell(
-        onTap: isAccepted ? onTap : null,
-        borderRadius: BorderRadius.circular(16),
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Opacity(
+        opacity: isAccepted ? 1.0 : 0.9,
         child: Container(
-          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isDark ? AppColors.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: !isAccepted
-                ? Border.all(color: statusColor.withOpacity(0.3), width: 1)
-                : null,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: !isAccepted
+                  ? statusColor.withOpacity(0.3)
+                  : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFEEF2F6)),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                blurRadius: 10,
+                color: Colors.black.withOpacity(isDark ? 0.25 : 0.03),
+                blurRadius: 15,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: Text(
-                      consultation.doctorName[0],
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ),
-                  if (!isAccepted)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.05),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.hourglass_empty,
-                            size: 16,
-                            color: Colors.orange,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: GestureDetector(
+              onTapDown: isAccepted ? (_) => _controller.forward() : null,
+              onTapUp: isAccepted ? (_) {
+                _controller.reverse();
+                widget.onTap();
+              } : null,
+              onTapCancel: isAccepted ? () => _controller.reverse() : null,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: isAccepted
+                                  ? [const Color(0xFF004AC6), const Color(0xFF10B981)]
+                                  : [const Color(0xFFF59E0B), Colors.grey.shade400],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 26,
+                            backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                            child: Text(
+                              widget.consultation.doctorName.isNotEmpty ? widget.consultation.doctorName[0].toUpperCase() : 'D',
+                              style: TextStyle(
+                                color: isAccepted ? const Color(0xFF004AC6) : const Color(0xFFF59E0B),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                fontFamily: AppTypography.fontFamily,
+                              ),
+                            ),
                           ),
                         ),
+                        if (!isAccepted)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF59E0B),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.lock_outline_rounded,
+                                size: 10,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.consultation.doctorName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black,
+                              fontFamily: AppTypography.fontFamily,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.consultation.doctorSpecialty,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                              fontFamily: AppTypography.fontFamily,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isAccepted) ...[
+                                  const _PulsingStatusDot(color: Color(0xFF10B981)),
+                                  const SizedBox(width: 6),
+                                ] else ...[
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 10,
+                                    color: Color(0xFFF59E0B),
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
+                                Text(
+                                  isAccepted ? 'ONGOING SESSION' : 'WAITING FOR APPROVAL',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    color: statusColor,
+                                    letterSpacing: 0.5,
+                                    fontFamily: AppTypography.fontFamily,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      consultation.doctorName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      consultation.doctorSpecialty,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        isAccepted ? 'ONGOING SESSION' : 'WAITING FOR APPROVAL',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          color: statusColor,
-                          letterSpacing: 0.5,
+                    if (isAccepted)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.primary.withOpacity(0.15) : const Color(0xFFE8F0FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 16,
+                          color: isDark ? AppColors.darkPrimary : const Color(0xFF004AC6),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFEF3C7),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 16,
+                          color: Color(0xFFD97706),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
-              if (isAccepted)
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Colors.grey.shade400,
-                )
-              else
-                const Icon(Icons.lock_outline, size: 18, color: Colors.orange),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+// ── Pulse Status Indicator Dot ───────────────────────────────────────────────
+
+class _PulsingStatusDot extends StatefulWidget {
+  final Color color;
+  const _PulsingStatusDot({required this.color});
+
+  @override
+  State<_PulsingStatusDot> createState() => _PulsingStatusDotState();
+}
+
+class _PulsingStatusDotState extends State<_PulsingStatusDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _animation,
+      child: Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: widget.color,
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedEntry extends StatelessWidget {
+  final Widget child;
+  final int index;
+
+  const _AnimatedEntry({required this.child, required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 350 + (index * 80)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 16 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _FloatingAIChatWidget extends StatefulWidget {
+  final User user;
+  final Function(BuildContext) showChatCallback;
+
+  const _FloatingAIChatWidget({
+    required this.user,
+    required this.showChatCallback,
+  });
+
+  @override
+  State<_FloatingAIChatWidget> createState() => _FloatingAIChatWidgetState();
+}
+
+class _FloatingAIChatWidgetState extends State<_FloatingAIChatWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  bool _isFlipped = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _controller.addListener(() {
+      if (_controller.value >= 0.5 && !_isFlipped) {
+        setState(() {
+          _isFlipped = true;
+        });
+      } else if (_controller.value < 0.5 && _isFlipped) {
+        setState(() {
+          _isFlipped = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _triggerFlip() {
+    if (_controller.isAnimating) return;
+    HapticFeedback.mediumImpact();
+    _controller.forward().then((_) {
+      widget.showChatCallback(context);
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          _controller.reset();
+          setState(() {
+            _isFlipped = false;
+          });
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final double angle = _controller.value * math.pi;
+
+        final frontButton = Container(
+          height: 60,
+          width: 60,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [
+                AppColors.primary,
+                Color(0xFF2E7D32),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.smart_toy_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
+        );
+
+        final backButton = Container(
+          height: 60,
+          width: 60,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Colors.orange,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.chat_bubble_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
+        );
+
+        return GestureDetector(
+          onTap: _triggerFlip,
+          child: Transform(
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.002) // perspective
+              ..rotateY(angle),
+            alignment: Alignment.center,
+            child: !_isFlipped
+                ? frontButton
+                : Transform(
+                    transform: Matrix4.rotationY(math.pi),
+                    alignment: Alignment.center,
+                    child: backButton,
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+

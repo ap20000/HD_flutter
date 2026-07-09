@@ -77,4 +77,42 @@ class AuthRepositoryImpl implements AuthRepository {
       return const Left(ServerFailure('An unexpected error occurred'));
     }
   }
+
+  @override
+  Future<Either<Failure, User>> updateProfile({
+    required String name,
+    required String email,
+    String? gender,
+    String? dob,
+    String? address,
+    double? bmiHeight,
+    double? bmiWeight,
+    String? speciality,
+    String? qualification,
+    String? nmcNumber,
+    int? experience,
+    String? bio,
+  }) async {
+    try {
+      final userModel = await remoteDataSource.updateProfile(
+        name: name,
+        email: email,
+        gender: gender,
+        dob: dob,
+        address: address,
+        bmiHeight: bmiHeight,
+        bmiWeight: bmiWeight,
+        speciality: speciality,
+        qualification: qualification,
+        nmcNumber: nmcNumber,
+        experience: experience,
+        bio: bio,
+      );
+      return Right(userModel as User);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (e) {
+      return const Left(ServerFailure('An unexpected error occurred'));
+    }
+  }
 }
