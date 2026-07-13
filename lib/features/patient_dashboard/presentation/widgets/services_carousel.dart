@@ -15,7 +15,7 @@ class ServicesCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     final List<Map<String, dynamic>> serviceDetails = [
       {
         'name': 'General',
@@ -26,7 +26,7 @@ class ServicesCarousel extends StatelessWidget {
           colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        )
+        ),
       },
       {
         'name': 'Cardiology',
@@ -37,7 +37,7 @@ class ServicesCarousel extends StatelessWidget {
           colors: [Color(0xFFFFEBEE), Color(0xFFFFCDD2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        )
+        ),
       },
       {
         'name': 'Genetics',
@@ -48,7 +48,7 @@ class ServicesCarousel extends StatelessWidget {
           colors: [Color(0xFFF3E5F5), Color(0xFFE1BEE7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        )
+        ),
       },
       {
         'name': 'Diagnostic',
@@ -59,7 +59,7 @@ class ServicesCarousel extends StatelessWidget {
           colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        )
+        ),
       },
     ];
 
@@ -98,13 +98,18 @@ class _ServiceItemState extends State<_ServiceItem> {
   Widget build(BuildContext context) {
     final gradient = widget.isDark
         ? LinearGradient(
-            colors: [AppColors.darkSurface, AppColors.darkSurface.withOpacity(0.8)],
+            colors: [
+              AppColors.darkSurface,
+              AppColors.darkSurface.withOpacity(0.8),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           )
         : widget.service['gradient'] as Gradient;
 
-    final iconColor = widget.isDark ? Colors.white : widget.service['iconColor'] as Color;
+    final iconColor = widget.isDark
+        ? Colors.white
+        : widget.service['iconColor'] as Color;
 
     return Column(
       children: [

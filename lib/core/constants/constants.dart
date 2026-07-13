@@ -35,4 +35,12 @@ class ApiConstants {
       '/api/$apiVersion/consultations/request';
   static String respondToConsultation(String id) =>
       '/api/$apiVersion/consultations/$id/respond';
+
+  // Medical Records, Surgical, Pharmaceuticals, and Marketing Ads Endpoints
+  static const String records = '/api/$apiVersion/records';
+  static String shareRecord(String id) => '/api/$apiVersion/records/$id/share';
+  static const String surgicalProducts = '/api/$apiVersion/surgical/products';
+  static const String surgicalOrders = '/api/$apiVersion/surgical/orders';
+  static const String pharmaMedicines = '/api/$apiVersion/pharmaceutical/medicines';
+  static const String marketingAds = '/api/$apiVersion/marketing/ads';
 }

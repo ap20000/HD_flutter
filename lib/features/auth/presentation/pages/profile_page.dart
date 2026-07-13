@@ -13,6 +13,15 @@ import '../bloc/auth_state.dart';
 import 'login_page.dart';
 import 'package:hamro_doctor_mobile/features/consultation/presentation/pages/prescription_page.dart';
 
+// New Clean Architecture Pages & Blocs
+import '../../../medical_records/presentation/pages/medical_records_page.dart';
+import '../../../surgical_registry/presentation/pages/surgical_registry_page.dart';
+import '../../../pharmaceuticals/presentation/pages/pharmaceutical_directory_page.dart';
+import '../../../medical_records/presentation/bloc/medical_records_bloc.dart';
+import '../../../surgical_registry/presentation/bloc/surgical_bloc.dart';
+import '../../../pharmaceuticals/presentation/bloc/pharmaceutical_bloc.dart';
+import '../../../../injection_container.dart';
+
 Uint8List? _getAvatarBytes(String? base64Str) {
   if (base64Str == null || base64Str.isEmpty) return null;
   try {
@@ -887,6 +896,92 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                               },
                             ),
                           ),
+                          if (!isDoctor) ...[
+                            const SizedBox(height: 20),
+                            _AnimatedEntrance(
+                              animation: _entranceController,
+                              delay: 6,
+                              child: _buildQuickActionCard(
+                                icon: Icons.folder_shared_outlined,
+                                title: 'Medical Records',
+                                subtitle: 'Manage health reports and temporarily share with doctors.',
+                                isDark: isDark,
+                                cardColor: cardColor,
+                                titleColor: textPrimaryColor,
+                                subtitleColor: textTertiaryColor,
+                                borderColor: borderColor,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => BlocProvider(
+                                        create: (_) => sl<MedicalRecordsBloc>(),
+                                        child: MedicalRecordsPage(isDark: isDark),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _AnimatedEntrance(
+                              animation: _entranceController,
+                              delay: 6,
+                              child: _buildQuickActionCard(
+                                icon: Icons.healing_outlined,
+                                title: 'Surgical Registry',
+                                subtitle: 'Log surgical logs and lookup distributor catalogs.',
+                                isDark: isDark,
+                                cardColor: cardColor,
+                                titleColor: textPrimaryColor,
+                                subtitleColor: textTertiaryColor,
+                                borderColor: borderColor,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => BlocProvider(
+                                        create: (_) => sl<SurgicalBloc>(),
+                                        child: SurgicalRegistryPage(
+                                          isDark: isDark,
+                                          userRole: currentUser.role,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _AnimatedEntrance(
+                              animation: _entranceController,
+                              delay: 6,
+                              child: _buildQuickActionCard(
+                                icon: Icons.vaccines_outlined,
+                                title: 'Pharmaceutical Directory',
+                                subtitle: 'Search brand medicines and generic formulas.',
+                                isDark: isDark,
+                                cardColor: cardColor,
+                                titleColor: textPrimaryColor,
+                                subtitleColor: textTertiaryColor,
+                                borderColor: borderColor,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => BlocProvider(
+                                        create: (_) => sl<PharmaceuticalBloc>(),
+                                        child: PharmaceuticalDirectoryPage(
+                                          isDark: isDark,
+                                          userRole: currentUser.role,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 20),
 
                           // Account Settings Card (Only real Log Out)

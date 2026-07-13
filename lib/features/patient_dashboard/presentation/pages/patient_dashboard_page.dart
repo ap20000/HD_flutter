@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
+import 'package:hamro_doctor_mobile/features/medical_records/presentation/pages/medical_records_page.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../features/auth/domain/entities/user.dart';
@@ -28,6 +29,14 @@ import '../widgets/services_carousel.dart';
 import '../widgets/consultation_banner_card.dart';
 import '../widgets/specialist_card.dart';
 import '../widgets/article_card.dart';
+
+// Import New Pages & Blocs
+
+import '../../../surgical_registry/presentation/pages/surgical_registry_page.dart';
+import '../../../pharmaceuticals/presentation/pages/pharmaceutical_directory_page.dart';
+import '../../../medical_records/presentation/bloc/medical_records_bloc.dart';
+import '../../../surgical_registry/presentation/bloc/surgical_bloc.dart';
+import '../../../pharmaceuticals/presentation/bloc/pharmaceutical_bloc.dart';
 import '../widgets/upcoming_appointment_section.dart';
 
 Uint8List? _getAvatarBytes(String? base64Str) {
@@ -330,8 +339,46 @@ class _DashboardBodyState extends State<_DashboardBody> {
 
   void _onServiceTap(BuildContext context, String service) {
     HapticFeedback.lightImpact();
-    if (service == 'Book Doctor') {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (service == 'Consult') {
       _onConsultNow(context);
+    } else if (service == 'Records') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider(
+            create: (_) => sl<MedicalRecordsBloc>(),
+            child: MedicalRecordsPage(isDark: isDark),
+          ),
+        ),
+      );
+    } else if (service == 'Surgical') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider(
+            create: (_) => sl<SurgicalBloc>(),
+            child: SurgicalRegistryPage(
+              isDark: isDark,
+              userRole: widget.user.role,
+            ),
+          ),
+        ),
+      );
+    } else if (service == 'Medicines') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider(
+            create: (_) => sl<PharmaceuticalBloc>(),
+            child: PharmaceuticalDirectoryPage(
+              isDark: isDark,
+              userRole: widget.user.role,
+            ),
+          ),
+        ),
+      );
     } else {
       ScaffoldMessenger.of(
         context,
@@ -398,7 +445,6 @@ class _DashboardBodyState extends State<_DashboardBody> {
           parent: BouncingScrollPhysics(),
         ),
         slivers: [
-
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             sliver: SliverList(
@@ -452,7 +498,9 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                         context: context,
                                         builder: (context) => AlertDialog(
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
                                           ),
                                           backgroundColor: isDark
                                               ? AppColors.darkSurface
@@ -535,7 +583,9 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                         onConsultNow: (doctorId) {
                                           context
                                               .read<PatientDashboardBloc>()
-                                              .add(RequestConsultation(doctorId));
+                                              .add(
+                                                RequestConsultation(doctorId),
+                                              );
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -543,7 +593,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
                                               content: Text(
                                                 'Starting consultation request with Dr. ${grouped.authorName}...',
                                               ),
-                                              behavior: SnackBarBehavior.floating,
+                                              behavior:
+                                                  SnackBarBehavior.floating,
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
                                                     BorderRadius.circular(12),
@@ -578,13 +629,25 @@ class _DashboardBodyState extends State<_DashboardBody> {
                 ),
                 const SizedBox(height: 24),
                 _AnimatedEntry(
+                  index: 35,
+                  child: _MarketingBanners(isDark: isDark),
+                ),
+                const SizedBox(height: 24),
+                _AnimatedEntry(
                   index: 4,
-                  child: ConsultationBannerCard(onTap: () => _onConsultNow(context)),
+                  child: ConsultationBannerCard(
+                    onTap: () => _onConsultNow(context),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _AnimatedEntry(
                   index: 5,
-                  child: _buildAIChatCard(context, isDark, textPrimary, textSecondary),
+                  child: _buildAIChatCard(
+                    context,
+                    isDark,
+                    textPrimary,
+                    textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _AnimatedEntry(
@@ -665,7 +728,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: widget.state.articles.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
                           itemBuilder: (context, idx) {
                             final article = widget.state.articles[idx];
                             return ArticleCard(
@@ -740,14 +804,8 @@ class _DashboardBodyState extends State<_DashboardBody> {
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           colors: isDark
-              ? [
-                  AppColors.primary.withOpacity(0.15),
-                  AppColors.darkSurface,
-                ]
-              : [
-                  AppColors.primary.withOpacity(0.08),
-                  Colors.white,
-                ],
+              ? [AppColors.primary.withOpacity(0.15), AppColors.darkSurface]
+              : [AppColors.primary.withOpacity(0.08), Colors.white],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -913,7 +971,9 @@ class _DashboardBodyState extends State<_DashboardBody> {
               width: 44,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isDark ? Colors.white.withOpacity(0.06) : AppColors.primarySoft.withOpacity(0.4),
+                color: isDark
+                    ? Colors.white.withOpacity(0.06)
+                    : AppColors.primarySoft.withOpacity(0.4),
               ),
               child: Center(
                 child: IconButton(
@@ -970,7 +1030,9 @@ class _DashboardBodyState extends State<_DashboardBody> {
                     child: CircleAvatar(
                       radius: 22,
                       backgroundColor: AppColors.primarySoft,
-                      backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes) : null,
+                      backgroundImage: avatarBytes != null
+                          ? MemoryImage(avatarBytes)
+                          : null,
                       child: avatarBytes == null
                           ? const Icon(
                               Icons.person,
@@ -990,7 +1052,9 @@ class _DashboardBodyState extends State<_DashboardBody> {
                         color: AppColors.success,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: isDark ? AppColors.darkBackground : Colors.white,
+                          color: isDark
+                              ? AppColors.darkBackground
+                              : Colors.white,
                           width: 2,
                         ),
                       ),
@@ -1280,7 +1344,9 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                       prefixIcon: Icon(
                         Icons.search_rounded,
                         size: 20,
-                        color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                        color: isDark
+                            ? AppColors.darkPrimary
+                            : AppColors.primary,
                       ),
                       filled: true,
                       fillColor: isDark ? AppColors.darkSurface : Colors.white,
@@ -1288,14 +1354,18 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide(
-                          color: isDark ? AppColors.dividerDark : const Color(0xFFEEF2F6),
+                          color: isDark
+                              ? AppColors.dividerDark
+                              : const Color(0xFFEEF2F6),
                           width: 1.5,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide(
-                          color: isDark ? AppColors.darkPrimary : AppColors.primary,
+                          color: isDark
+                              ? AppColors.darkPrimary
+                              : AppColors.primary,
                           width: 2.0,
                         ),
                       ),
@@ -1305,7 +1375,10 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
               ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Row(
                   children: [
                     _buildFilterChip('all', 'All'),
@@ -1341,7 +1414,8 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
                                       currentUserId: widget.currentUserId,
                                       otherUserName: consultation.doctorName,
                                       isDoctor: false,
-                                      initialPrescription: consultation.prescription,
+                                      initialPrescription:
+                                          consultation.prescription,
                                     ),
                                   ),
                                 );
@@ -1413,7 +1487,9 @@ class _ConsultationsPageState extends State<_ConsultationsPage> {
           border: Border.all(
             color: isSelected
                 ? AppColors.primary
-                : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFEEF2F6)),
+                : (isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : const Color(0xFFEEF2F6)),
             width: 1.5,
           ),
           boxShadow: isSelected
@@ -1500,9 +1576,10 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
       vsync: this,
       duration: const Duration(milliseconds: 80),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.96,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -1516,7 +1593,9 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
     final isDark = widget.isDark;
     final statusColor = widget.consultation.status == 'active'
         ? const Color(0xFF10B981) // emerald green
-        : (widget.consultation.status == 'pending' ? const Color(0xFFF59E0B) : Colors.grey);
+        : (widget.consultation.status == 'pending'
+              ? const Color(0xFFF59E0B)
+              : Colors.grey);
 
     final bool isAccepted = widget.consultation.status == 'active';
 
@@ -1531,7 +1610,9 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
             border: Border.all(
               color: !isAccepted
                   ? statusColor.withOpacity(0.3)
-                  : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFEEF2F6)),
+                  : (isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : const Color(0xFFEEF2F6)),
               width: 1.5,
             ),
             boxShadow: [
@@ -1546,10 +1627,12 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
             borderRadius: BorderRadius.circular(24),
             child: GestureDetector(
               onTapDown: isAccepted ? (_) => _controller.forward() : null,
-              onTapUp: isAccepted ? (_) {
-                _controller.reverse();
-                widget.onTap();
-              } : null,
+              onTapUp: isAccepted
+                  ? (_) {
+                      _controller.reverse();
+                      widget.onTap();
+                    }
+                  : null,
               onTapCancel: isAccepted ? () => _controller.reverse() : null,
               child: Padding(
                 padding: const EdgeInsets.all(18),
@@ -1563,19 +1646,32 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
                               colors: isAccepted
-                                  ? [const Color(0xFF004AC6), const Color(0xFF10B981)]
-                                  : [const Color(0xFFF59E0B), Colors.grey.shade400],
+                                  ? [
+                                      const Color(0xFF004AC6),
+                                      const Color(0xFF10B981),
+                                    ]
+                                  : [
+                                      const Color(0xFFF59E0B),
+                                      Colors.grey.shade400,
+                                    ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                           ),
                           child: CircleAvatar(
                             radius: 26,
-                            backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                            backgroundColor: isDark
+                                ? AppColors.darkSurface
+                                : Colors.white,
                             child: Text(
-                              widget.consultation.doctorName.isNotEmpty ? widget.consultation.doctorName[0].toUpperCase() : 'D',
+                              widget.consultation.doctorName.isNotEmpty
+                                  ? widget.consultation.doctorName[0]
+                                        .toUpperCase()
+                                  : 'D',
                               style: TextStyle(
-                                color: isAccepted ? const Color(0xFF004AC6) : const Color(0xFFF59E0B),
+                                color: isAccepted
+                                    ? const Color(0xFF004AC6)
+                                    : const Color(0xFFF59E0B),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
                                 fontFamily: AppTypography.fontFamily,
@@ -1639,7 +1735,9 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (isAccepted) ...[
-                                  const _PulsingStatusDot(color: Color(0xFF10B981)),
+                                  const _PulsingStatusDot(
+                                    color: Color(0xFF10B981),
+                                  ),
                                   const SizedBox(width: 6),
                                 ] else ...[
                                   const Icon(
@@ -1650,7 +1748,9 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
                                   const SizedBox(width: 4),
                                 ],
                                 Text(
-                                  isAccepted ? 'ONGOING SESSION' : 'WAITING FOR APPROVAL',
+                                  isAccepted
+                                      ? 'ONGOING SESSION'
+                                      : 'WAITING FOR APPROVAL',
                                   style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w900,
@@ -1669,13 +1769,17 @@ class _FullConsultationCardState extends State<_FullConsultationCard>
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.primary.withOpacity(0.15) : const Color(0xFFE8F0FF),
+                          color: isDark
+                              ? AppColors.primary.withOpacity(0.15)
+                              : const Color(0xFFE8F0FF),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.chat_bubble_outline_rounded,
                           size: 16,
-                          color: isDark ? AppColors.darkPrimary : const Color(0xFF004AC6),
+                          color: isDark
+                              ? AppColors.darkPrimary
+                              : const Color(0xFF004AC6),
                         ),
                       )
                     else
@@ -1740,10 +1844,7 @@ class _PulsingStatusDotState extends State<_PulsingStatusDot>
       child: Container(
         width: 6,
         height: 6,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: widget.color,
-        ),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
       ),
     );
   }
@@ -1848,10 +1949,7 @@ class _FloatingAIChatWidgetState extends State<_FloatingAIChatWidget>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const LinearGradient(
-              colors: [
-                AppColors.primary,
-                Color(0xFF2E7D32),
-              ],
+              colors: [AppColors.primary, Color(0xFF2E7D32)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -1876,10 +1974,7 @@ class _FloatingAIChatWidgetState extends State<_FloatingAIChatWidget>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const LinearGradient(
-              colors: [
-                Color(0xFF2E7D32),
-                Colors.orange,
-              ],
+              colors: [Color(0xFF2E7D32), Colors.orange],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -1919,3 +2014,194 @@ class _FloatingAIChatWidgetState extends State<_FloatingAIChatWidget>
   }
 }
 
+class _MarketingBanners extends StatefulWidget {
+  final bool isDark;
+
+  const _MarketingBanners({required this.isDark});
+
+  @override
+  State<_MarketingBanners> createState() => _MarketingBannersState();
+}
+
+class _MarketingBannersState extends State<_MarketingBanners> {
+  final PageController _pageController = PageController(viewportFraction: 0.9);
+  int _currentPage = 0;
+
+  final List<Map<String, String>> _mockBanners = [
+    {
+      'title': 'Premium Health Checkup',
+      'subtitle': 'Get 25% off on complete blood & lipid screening',
+      'code': 'HEALTH25',
+      'color1': '0xFF0F172A',
+      'color2': '0xFF1E293B',
+      'image':
+          'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500&auto=format&fit=crop&q=60',
+    },
+    {
+      'title': 'Online Video Consultation',
+      'subtitle': 'Consult top clinical specialists from home instantly',
+      'code': 'VIDEOFREE',
+      'color1': '0xFF0284C7',
+      'color2': '0xFF0369A1',
+      'image':
+          'https://images.unsplash.com/photo-1579684389782-64d84b5e901a?w=500&auto=format&fit=crop&q=60',
+    },
+    {
+      'title': 'Surgical Distributor Expo',
+      'subtitle': 'Browse annual catalogs of medical distributors',
+      'code': 'SURGEXPO',
+      'color1': '0xFF0D9488',
+      'color2': '0xFF0F766E',
+      'image':
+          'https://images.unsplash.com/photo-1551076805-e1869033e561?w=500&auto=format&fit=crop&q=60',
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto scroll every 4 seconds
+    Future.delayed(const Duration(seconds: 4), _autoScroll);
+  }
+
+  void _autoScroll() {
+    if (!mounted) return;
+    _currentPage = (_currentPage + 1) % _mockBanners.length;
+    _pageController.animateToPage(
+      _currentPage,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+    Future.delayed(const Duration(seconds: 4), _autoScroll);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 140,
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: _mockBanners.length,
+        itemBuilder: (context, index) {
+          final banner = _mockBanners[index];
+          final color1 = Color(int.parse(banner['color1']!));
+          final color2 = Color(int.parse(banner['color2']!));
+
+          return AnimatedBuilder(
+            animation: _pageController,
+            builder: (context, child) {
+              double value = 1.0;
+              if (_pageController.position.haveDimensions) {
+                value = _pageController.page! - index;
+                value = (1 - (value.abs() * 0.08)).clamp(0.0, 1.0);
+              }
+              return Center(
+                child: child != null
+                    ? SizedBox(
+                        height: Curves.easeOut.transform(value) * 140,
+                        width:
+                            Curves.easeOut.transform(value) *
+                            MediaQuery.of(context).size.width,
+                        child: child,
+                      )
+                    : const SizedBox(),
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [color1, color2],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color1.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Decorative Background Image with Overlay
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Opacity(
+                        opacity: 0.15,
+                        child: Image.network(
+                          banner['image']!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'PROMO: ${banner['code']}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          banner['title']!,
+                          style: const TextStyle(
+                            fontFamily: AppTypography.fontFamily,
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          banner['subtitle']!,
+                          style: const TextStyle(
+                            fontFamily: AppTypography.fontFamily,
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

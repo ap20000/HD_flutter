@@ -30,6 +30,27 @@ import 'features/consultation/presentation/bloc/consultation_bloc.dart';
 
 import 'core/network/auth_interceptor.dart';
 
+// Medical Records Feature
+import 'features/medical_records/data/datasources/medical_records_remote_data_source.dart';
+import 'features/medical_records/data/repositories/medical_records_repository_impl.dart';
+import 'features/medical_records/domain/repositories/medical_records_repository.dart';
+import 'features/medical_records/domain/usecases/medical_records_usecases.dart';
+import 'features/medical_records/presentation/bloc/medical_records_bloc.dart';
+
+// Surgical Registry Feature
+import 'features/surgical_registry/data/datasources/surgical_remote_data_source.dart';
+import 'features/surgical_registry/data/repositories/surgical_repository_impl.dart';
+import 'features/surgical_registry/domain/repositories/surgical_repository.dart';
+import 'features/surgical_registry/domain/usecases/surgical_usecases.dart';
+import 'features/surgical_registry/presentation/bloc/surgical_bloc.dart';
+
+// Pharmaceuticals Feature
+import 'features/pharmaceuticals/data/datasources/pharmaceutical_remote_data_source.dart';
+import 'features/pharmaceuticals/data/repositories/pharmaceutical_repository_impl.dart';
+import 'features/pharmaceuticals/domain/repositories/pharmaceutical_repository.dart';
+import 'features/pharmaceuticals/domain/usecases/pharmaceutical_usecases.dart';
+import 'features/pharmaceuticals/presentation/bloc/pharmaceutical_bloc.dart';
+
 final sl = GetIt.instance;
 
 Future<void> init() async {
@@ -75,6 +96,31 @@ Future<void> init() async {
     ),
   );
 
+  // Medical Records Bloc
+  sl.registerFactory(
+    () => MedicalRecordsBloc(
+      getMedicalRecordsUseCase: sl(),
+      uploadMedicalRecordUseCase: sl(),
+      shareMedicalRecordUseCase: sl(),
+    ),
+  );
+
+  // Surgical Bloc
+  sl.registerFactory(
+    () => SurgicalBloc(
+      getSurgicalLogsUseCase: sl(),
+      addSurgicalLogUseCase: sl(),
+    ),
+  );
+
+  // Pharmaceutical Bloc
+  sl.registerFactory(
+    () => PharmaceuticalBloc(
+      getMedicinesUseCase: sl(),
+      addMedicineUseCase: sl(),
+    ),
+  );
+
   // Use cases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
   sl.registerLazySingleton(() => RegisterUseCase(sl()));
@@ -94,6 +140,15 @@ Future<void> init() async {
   sl.registerLazySingleton(() => RespondToConsultationUseCase(sl()));
   sl.registerLazySingleton(() => GetConsultationByIdUseCase(sl()));
 
+  // New Use Cases
+  sl.registerLazySingleton(() => GetMedicalRecordsUseCase(sl()));
+  sl.registerLazySingleton(() => UploadMedicalRecordUseCase(sl()));
+  sl.registerLazySingleton(() => ShareMedicalRecordUseCase(sl()));
+  sl.registerLazySingleton(() => GetSurgicalLogsUseCase(sl()));
+  sl.registerLazySingleton(() => AddSurgicalLogUseCase(sl()));
+  sl.registerLazySingleton(() => GetMedicinesUseCase(sl()));
+  sl.registerLazySingleton(() => AddMedicineUseCase(sl()));
+
   // Repository
   sl.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(remoteDataSource: sl()),
@@ -106,6 +161,17 @@ Future<void> init() async {
     () => DoctorDashboardRepositoryImpl(remoteDataSource: sl()),
   );
 
+  // New Repositories
+  sl.registerLazySingleton<MedicalRecordsRepository>(
+    () => MedicalRecordsRepositoryImpl(remoteDataSource: sl()),
+  );
+  sl.registerLazySingleton<SurgicalRepository>(
+    () => SurgicalRepositoryImpl(remoteDataSource: sl()),
+  );
+  sl.registerLazySingleton<PharmaceuticalRepository>(
+    () => PharmaceuticalRepositoryImpl(remoteDataSource: sl()),
+  );
+
   // Data sources
   sl.registerLazySingleton<AuthRemoteDataSource>(
     () => AuthRemoteDataSourceImpl(dio: sl<Dio>()),
@@ -116,6 +182,17 @@ Future<void> init() async {
 
   sl.registerLazySingleton<DoctorDashboardRemoteDataSource>(
     () => DoctorDashboardRemoteDataSourceImpl(dio: sl()),
+  );
+
+  // New Data Sources
+  sl.registerLazySingleton<MedicalRecordsRemoteDataSource>(
+    () => MedicalRecordsRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<SurgicalRemoteDataSource>(
+    () => SurgicalRemoteDataSourceImpl(dio: sl()),
+  );
+  sl.registerLazySingleton<PharmaceuticalRemoteDataSource>(
+    () => PharmaceuticalRemoteDataSourceImpl(dio: sl()),
   );
 
   // External
